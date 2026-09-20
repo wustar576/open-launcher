@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ Original Open Launcher app icon (round variant).
+  ~ Open Launcher app icon colors.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background"/>
-    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-    <monochrome android:drawable="@drawable/ic_launcher_home_monochrome"/>
-</adaptive-icon>
+<resources>
+    <!-- Solid neutral background of the Open Launcher app icon. -->
+    <color name="ic_launcher_background">#2C3B41</color>
+    <!-- Foreground glyph (2x2 rounded-square grid) of the Open Launcher app icon. -->
+    <color name="ic_launcher_foreground">#FAFAFA</color>
+</resources>

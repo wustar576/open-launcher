@@ -76,61 +76,31 @@ class FontCache @Inject constructor(
                 .toList()
         }
 
-    val uiRegular = ResourceFont(
-        context,
-        R.font.googlesansflex_variable,
-        "Google Sans Flex " + context.getString(R.string.font_weight_medium),
-        mapOf(
-            FontAxes.WEIGHT to FontWeight.Normal.weight.toFloat(),
-            FontAxes.ROUNDNESS to 100f,
-            FontAxes.GRADE to 100f,
-        ),
-    )
+    // Open Launcher intentionally has no bundled brand font: the UI always uses the
+    // platform/system default typeface ("sans-serif" and its weight variants), so these
+    // resolve to whatever typeface the device ships as its default.
+    val uiRegular = SystemFont("sans-serif")
 
-    val uiMedium = ResourceFont(
-        context,
-        R.font.googlesansflex_variable,
-        "Google Sans Flex " + context.getString(R.string.font_weight_medium),
-        mapOf(
-            FontAxes.WEIGHT to FontWeight.Medium.weight.toFloat(),
-            FontAxes.ROUNDNESS to 100f,
-            FontAxes.GRADE to 0f,
-        ),
-    )
+    val uiMedium = SystemFont("sans-serif-medium")
 
-    val uiText = ResourceFont(
-        context,
-        R.font.googlesansflex_variable,
-        "Google Sans Flex " + context.getString(R.string.font_weight_medium),
-        mapOf(
-            FontAxes.WEIGHT to FontWeight.Normal.weight.toFloat(),
-            FontAxes.ROUNDNESS to 100f,
-            FontAxes.GRADE to 0f,
-        ),
-    )
+    val uiText = SystemFont("sans-serif")
 
-    val uiTextMedium = ResourceFont(
-        context,
-        R.font.googlesansflex_variable,
-        "Google Sans Flex " + context.getString(R.string.font_weight_medium),
-        mapOf(
-            FontAxes.WEIGHT to FontWeight.Medium.weight.toFloat(),
-            FontAxes.ROUNDNESS to 100f,
-            FontAxes.GRADE to 100f,
-        ),
-    )
+    val uiTextMedium = SystemFont("sans-serif-medium")
 
     /**
-     * A Google Sans Flex [ResourceFont] with the given variation [axes]. Used to back the AOSP
-     * Material 3 Expressive `variable-*` font family names, mirroring
-     * [app.lawnchair.ui.theme.GoogleSansFlex].
+     * Resolves the AOSP Material 3 Expressive `variable-*` font family names to the closest
+     * system-font weight. Open Launcher does not bundle a variable font, so the requested
+     * variation [axes] are approximated using only the system's "regular"/"medium"/"bold"
+     * typeface faces.
      */
-    fun googleSansFlexVariable(axes: Map<String, Float>): ResourceFont = ResourceFont(
-        context,
-        R.font.googlesansflex_variable,
-        "Google Sans Flex",
-        axes,
-    )
+    fun googleSansFlexVariable(axes: Map<String, Float>): TypefaceFont {
+        val weight = axes[FontAxes.WEIGHT]?.toInt() ?: FontWeight.Normal.weight
+        return when {
+            weight >= FontWeight.Bold.weight -> SystemFont("sans-serif", Typeface.BOLD)
+            weight >= FontWeight.Medium.weight -> SystemFont("sans-serif-medium")
+            else -> SystemFont("sans-serif")
+        }
+    }
 
     suspend fun getTypeface(font: Font): Typeface? {
         return loadFontAsync(font).await()?.typeface

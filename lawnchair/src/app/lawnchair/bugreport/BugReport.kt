@@ -17,8 +17,6 @@ data class BugReport(
     val type: String,
     val description: String,
     val contents: String,
-    val link: String?,
-    val uploadError: Boolean = false,
     val file: File?,
 ) : Parcelable {
 
@@ -28,8 +26,6 @@ data class BugReport(
         type,
         description,
         contents,
-        null,
-        false,
         file,
     )
 
@@ -54,7 +50,7 @@ data class BugReport(
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 putExtra(Intent.EXTRA_STREAM, fileUri)
             } else {
-                putExtra(Intent.EXTRA_TEXT, link ?: contents)
+                putExtra(Intent.EXTRA_TEXT, contents)
             }
             type = "text/plain"
         }

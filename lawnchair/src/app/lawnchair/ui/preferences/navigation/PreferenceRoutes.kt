@@ -5,7 +5,7 @@ import app.lawnchair.ui.preferences.destinations.SearchRoute
 import app.lawnchair.ui.preferences.destinations.ShapeRoute
 import kotlinx.serialization.Serializable
 
-private const val URI = "lawnchair://settings"
+private const val URI = "openlauncher://settings"
 
 /**
  * Represents a route in the Lawnchair preferences navigation graph.

@@ -1,112 +1,40 @@
-# Lawnchair 16
+# Open Launcher
 
-[![Build debug APK](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/ci.yml/badge.svg)](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/ci.yml)
-[![Build release APK](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/release_update.yml/badge.svg)](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/release_update.yml)
-[![Crowdin](https://badges.crowdin.net/e/188ba69d884418987f0b7f1dd55e3a4e/localized.svg)](https://lawnchair.crowdin.com/lawnchair)
-[![OpenCollective](https://img.shields.io/opencollective/all/lawnchair?label=financial%20contributors&logo=open-collective)](https://opencollective.com/lawnchair)
-[![Telegram](https://img.shields.io/endpoint?url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Flccommunity)](https://t.me/lccommunity)
-[![Discord](https://img.shields.io/discord/803299970169700402?label=server&logo=discord)](https://discord.gg/3x8qNWxgGZ)
-[![GitHub Downloads](https://img.shields.io/github/downloads/LawnchairLauncher/lawnchair/total.svg?label=GitHub%20Downloads&logo=github)](https://github.com/LawnchairLauncher/lawnchair/releases)
-[![Play Store Installs](https://img.shields.io/endpoint?color=green&logo=googleplay&logoColor=green&url=https%3A%2F%2Fplay.cuzi.workers.dev%2Fplay%3Fi%3Dapp.lawnchair.play%26l%3DPlay%2520Store%2520Installs%26m%3D%24shortinstalls)](https://play.google.com/store/apps/details?id=app.lawnchair.play)
+[![CI](https://github.com/wustar576/open-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/wustar576/open-launcher/actions/workflows/ci.yml)
 
-<picture>
-    <!-- Avoid image being clickable with slight workaround -->
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/device-frame-dark.webp" width="250px">
-    <img alt="Smartphone home screen shown in day and night themes, featuring Android Material You dynamic color styling across the wallpaper, clock widget, and app icons." src="docs/assets/device-frame-light.webp" width="250px">
-</picture>
+Open Launcher 是一個簡潔、貼近 Android 原生外觀的自由開源桌面啟動器（launcher）。專案衍生自 [Lawnchair](https://github.com/LawnchairLauncher/lawnchair) 與 AOSP Launcher3，但刻意大幅簡化：移除了 Lawnchair 的品牌識別、社群連結、遙測／更新檢查與大部分自訂選項，只保留貼近原生 Pixel 啟動器的核心體驗。
 
-Lawnchair is a free, open-source home app for Android. Taking Launcher3—Android’s default home app—as a starting point, it ports Pixel Launcher features and introduces rich customization options.
+**本專案與 Lawnchair 團隊沒有任何關係，也未獲得其背書。**「Lawnchair」名稱、圖示與商標僅屬於原專案所有；Open Launcher 是依 Apache-2.0 授權條款進行的獨立衍生作品。
 
-This branch houses the codebase of Lawnchair 16, which is currently in development and is based on Launcher3 from Android 16. For Lawnchair 9 to 15, see the branches with the `9-` to `15-` prefixes, respectively.
+## 三項功能
 
-## Features
+Open Launcher 只提供以下三項功能，其餘一律不在範圍內（例如圖示包、字型選擇、手勢自訂、備份還原、Quickstep 整合、網路搜尋建議或任何遙測）：
 
-- Material 3 Expressive theming that follows your wallpaper and system colors.
-- At a Glance widget support, with integration for [Smartspacer](https://github.com/KieronQuinn/Smartspacer).
-- QuickSwitch support for Android Recents integration on Android 15-16 (root required).
-- Global search for apps, contacts, and web results from the home screen.
-- Customization options for icon packs, fonts, and color settings.
+1. **桌面**：背景透明、直接顯示桌布，可擺放應用程式圖示與小工具。
+2. **應用程式抽屜**：提供基礎的自動分類資料夾，並可依名稱模糊搜尋本機已安裝的應用程式；搜尋過程完全在裝置端進行，不會發出任何網路請求。
+3. **Blink 新聞頁外掛**：在主畫面向右滑動可開啟 Google Discover 新聞頁。此功能由**另一個獨立的 APK**（位於本儲存庫的 [`feed/`](feed/) 目錄，是獨立的 Gradle 專案）提供，啟動器本體並不內含，也不需要安裝就能正常使用桌面與抽屜。
 
-## Download
+更完整的產品規格請見 [`docs/specs/open-launcher-spec.md`](docs/specs/open-launcher-spec.md)。
 
-<p align="left">
-  <a href="https://play.google.com/store/apps/details?id=app.lawnchair.play">
-    <picture>
-      <!-- Avoid image being clickable with slight workaround -->
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/badge-google-play.webp" height="60">
-      <img alt="Get it on Google Play" src="docs/assets/badge-google-play.webp" height="60">
-    </picture>
-  </a>
-  <a href="https://apt.izzysoft.de/fdroid/index/apk/app.lawnchair">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/badge-izzyondroid.webp" height="60">
-      <img alt="Get it on IzzyOnDroid" src="docs/assets/badge-izzyondroid.webp" height="60">
-    </picture>
-  </a>
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/LawnchairLauncher/lawnchair/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/badge-obtainium.webp" height="60">
-      <img alt="Get it on Obtainium" src="docs/assets/badge-obtainium.webp" height="60">
-    </picture>
-  </a>
-    <a href="https://github.com/LawnchairLauncher/lawnchair/releases">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/badge-github.webp" height="60">
-      <img alt="Get it on GitHub" src="docs/assets/badge-github.webp" height="60">
-    </picture>
-  </a>
-</p>
+## 建置方式
 
-Lawnchair on Play Store will install as a different app compared to other sources. Features may be restricted to comply with Google Play’s publishing rules.
+1. 準備環境：Android Studio（內建 JBR，即 JetBrains Runtime）、已設定好的 Android SDK（`local.properties` 需指向 SDK 路徑）。
+2. 於儲存庫根目錄執行（Git Bash）：
 
-You can also [verify your installation](https://docs.lawnchair.app/getting-started/install-and-setup/verify) to check if you have installed an official build.
+   ```bash
+   JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew assembleLawnWithQuickstepGithubDebug --no-daemon
+   ```
 
-### Development builds
+3. 建置完成後，debug APK 會輸出在 `build/outputs/apk/` 對應的資料夾中，檔名格式為 `OpenLauncher.<版本>.github.debug.apk`。
 
-Interested in keeping yourself up-to-date with every Lawnchair development? Try our development builds!
+新聞頁外掛（`feed/`）是獨立的 Gradle 專案，需另外進入該目錄以其自身的 wrapper 建置，詳見該目錄內的說明。
 
-These builds offer the latest features and bug fixes at a cost of performance and additional issues. Make backups before installing.
+## 授權
 
-Download: [Obtainium][Obtainium link] • [GitHub][GitHub link] • [nightly.link][Nightly link]
+本專案整體以 **GPL-3.0-or-later** 授權發佈（因樹內包含數個 GPL-3.0-or-later 檔案，例如抽屜分類所需的 `flowerpot/`）。上游 AOSP Launcher3 與 Lawnchair 的主要部份為 Apache-2.0 授權；相關著作權聲明與授權全文請見 [`LICENSE.txt`](LICENSE.txt) 與 [`NOTICE`](NOTICE)。
 
-## Sponsors
+## 與 Lawnchair 的關係
 
-<p align="left">
-  <a href="https://coderabbit.link/lawnchair">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sponsor-coderabbit-dark.svg" width="300">
-      <img alt="CodeRabbit" src="docs/assets/sponsor-coderabbit-light.svg" width="300">
-    </picture>
-  </a>
-</p>
+Open Launcher 是 Lawnchair（`LawnchairLauncher/lawnchair`，`16-dev` 分支）的原始碼修改衍生版本，同時也使用了 AOSP Launcher3 的程式碼。修改內容主要包含：移除品牌識別、社群／贊助／自動更新相關程式碼與連結、精簡設定頁、加入應用程式抽屜自動分類，以及將新聞頁功能拆分為獨立外掛 APK。詳細修改範圍請見 [`NOTICE`](NOTICE)。
 
-[CodeRabbit](https://coderabbit.link/lawnchair) is an AI-powered code review platform that integrates directly into pull-request workflows and IDEs, examining code changes in context and suggesting improvements.
-
-## Support Lawnchair
-
-If you love what we do, consider [supporting us on Open Collective](https://opencollective.com/lawnchair)! Your contributions help keep Lawnchair independent and enable us to develop faster.
-
-A huge thank you to our Core Backers ($5+):
-*(These backers directly fund our Project Velocity Fund)*
-
-[![Core Backers](https://opencollective.com/lawnchair/tiers/backer.svg?avatarHeight=64&width=890&button=false)](https://opencollective.com/lawnchair)
-
-[Become a supporter](https://opencollective.com/lawnchair) to help us cover our operational costs, or become a Core Backer to be featured here!
-
-## Contribute
-
-Visit the [Lawnchair contributing guidelines](CONTRIBUTING.md) for information and tips on contributing to Lawnchair.
-
-## Quick links
-
-- [Website](https://lawnchair.app)
-- [Documentation](https://docs.lawnchair.app/)
-- [News on Telegram](https://t.me/lawnchairci)
-- [Discord](https://discord.com/invite/3x8qNWxgGZ)
-- [X (formerly Twitter)](https://x.com/lawnchairapp)
-- [_XDA_ thread](https://xdaforums.com/t/lawnchair-customizable-pixel-launcher.3627137/)
-
-<!-- Download links -->
-[Nightly link]: https://nightly.link/LawnchairLauncher/lawnchair/workflows/ci/16-dev
-[Obtainium link]: https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22app.lawnchair.nightly%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Flawnchairlauncher%2Flawnchair%22%2C%22author%22%3A%22Lawnchair%20Launcher%22%2C%22name%22%3A%22Lawnchair%20(Debug)%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Atrue%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22filterReleaseTitlesByRegEx%5C%22%3A%5C%22Lawnchair%20Nightly%5C%22%2C%5C%22filterReleaseNotesByRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22verifyLatestTag%5C%22%3Afalse%2C%5C%22dontSortReleasesList%5C%22%3Afalse%2C%5C%22useLatestAssetDateAsReleaseDate%5C%22%3Afalse%2C%5C%22trackOnly%5C%22%3Afalse%2C%5C%22versionExtractionRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22matchGroupToUse%5C%22%3A%5C%22%5C%22%2C%5C%22versionDetection%5C%22%3Afalse%2C%5C%22releaseDateAsVersion%5C%22%3Atrue%2C%5C%22useVersionCodeAsOSVersion%5C%22%3Afalse%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22invertAPKFilter%5C%22%3Afalse%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22%5C%22%2C%5C%22shizukuPretendToBeGooglePlay%5C%22%3Afalse%2C%5C%22exemptFromBackgroundUpdates%5C%22%3Afalse%2C%5C%22skipUpdateNotifications%5C%22%3Afalse%2C%5C%22about%5C%22%3A%5C%22Lawnchair%20is%20a%20free%2C%20open-source%20home%20app%20for%20Android.%20(NOTE%3A%20This%20is%20the%20debug%20version%20of%20Lawnchair%2C%20for%20the%20beta%2Fstable%20versions%20see%20%5C%5C%5C%22Lawnchair%5C%5C%5C%22)%5C%22%7D%22%7D
-[GitHub link]: https://github.com/LawnchairLauncher/lawnchair/releases/tag/nightly
+本專案不隸屬於 Lawnchair 開發團隊，亦未經其審核或背書；如有問題請至[本儲存庫的 Issues](https://github.com/wustar576/open-launcher/issues) 回報，不要回報至 Lawnchair 官方頻道。

@@ -52,7 +52,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import androidx.core.content.res.ResourcesCompat;
 import app.lawnchair.DeviceProfileOverrides.TextFactors;
 import com.android.launcher3.CellLayout.ContainerType;
 import com.android.launcher3.DevicePaddings.DevicePadding;
@@ -737,10 +736,11 @@ public class DeviceProfile {
         boolean showNotificationCount = PreferenceCacheExtensionsKt
                 .firstCached(preferenceManager2.getShowNotificationCount());
 
-        // Load the default font to use on notification dots
+        // Load the default font to use on notification dots. Open Launcher does not bundle a
+        // brand font, so this uses the platform's default typeface.
         Typeface typeface = null;
         if (showNotificationCount) {
-            typeface = ResourcesCompat.getFont(context, R.font.googlesansflex_variable);
+            typeface = Typeface.DEFAULT;
         }
 
         // Load dot color

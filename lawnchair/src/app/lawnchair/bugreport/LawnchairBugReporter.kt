@@ -28,13 +28,6 @@ class LawnchairBugReporter(private val context: Context) {
                 NotificationManager.IMPORTANCE_HIGH,
             ),
         )
-        notificationManager.createNotificationChannel(
-            NotificationChannel(
-                BugReportReceiver.STATUS_CHANNEL_ID,
-                context.getString(R.string.status_channel_name),
-                NotificationManager.IMPORTANCE_NONE,
-            ),
-        )
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
