@@ -75,7 +75,6 @@ import app.lawnchair.preferences2.PreferenceManager2;
 import app.lawnchair.smartspace.provider.SmartspaceProvider;
 import app.lawnchair.theme.ThemeProvider;
 import app.lawnchair.ui.preferences.components.colorpreference.ColorPreferenceModelList;
-import app.lawnchair.ui.preferences.data.liveinfo.LiveInformationManager;
 import app.lawnchair.util.LawnchairWindowManagerProxy;
 import dagger.BindsInstance;
 
@@ -136,7 +135,6 @@ public interface LauncherBaseAppComponent {
     HeadlessWidgetsManager getHeadlessWidgetsManager();
     NotificationManager getNotificationManager();
     ColorPreferenceModelList getColorPreferenceModelList();
-    LiveInformationManager getLiveInformationManager();
     LawnchairPredictionManager getLawnchairPredictionManager();
     PreferenceManager2 getPreferenceManager2();
     PreferenceManager getPreferenceManager();

@@ -94,10 +94,10 @@
     <string name="config_default_smartspace_time_format" translatable="false">system</string>
 
     <!-- which prediction mode to use by default -->
-    <string name="config_default_prediction_mode" translatable="false">lawnchair</string>
+    <string name="config_default_prediction_mode" translatable="false">none</string>
 
     <!-- which hotseat mode to use by default -->
-    <string name="config_default_hotseat_mode" translatable="false">lawnchair</string>
+    <string name="config_default_hotseat_mode" translatable="false">disabled</string>
 
     <!-- which web search provider to use by default -->
     <string name="config_default_web_suggestion_provider" translatable="false">google</string>
@@ -112,14 +112,11 @@
     <string name="pref_key_swipe_right" translatable="false">pref_swipe_right</string>
     <string name="pref_key_swipe_left" translatable="false">pref_swipe_left</string>
 
-    <!-- Live information endpoint -->
-    <string name="config_default_live_information_endpoint" translatable="false">https://lawnchair.app/live-information.json</string>
-
     <bool name="config_default_show_hotseat">true</bool>
     <bool name="config_default_always_reload_icons">true</bool>
     <bool name="config_default_dark_status_bar">false</bool>
     <bool name="config_default_show_notification_count">false</bool>
-    <bool name="config_default_themed_hotseat_qsb">true</bool>
+    <bool name="config_default_themed_hotseat_qsb">false</bool>
     <bool name="config_default_dock_search_bar_force_website">false</bool>
     <bool name="config_default_rounded_widgets">true</bool>
     <bool name="config_default_allow_widget_overlap">false</bool>
@@ -139,27 +136,25 @@
     <bool name="config_default_app_drawer_haptic_feedback">true</bool>
     <bool name="config_default_show_hidden_apps_in_search">false</bool>
     <bool name="config_default_enable_smart_hide">false</bool>
-    <bool name="config_default_show_suggested_apps_at_drawer_top">true</bool>
-    <bool name="config_default_enable_font_selection">true</bool>
+    <bool name="config_default_show_suggested_apps_at_drawer_top">false</bool>
+    <bool name="config_default_enable_font_selection">false</bool>
     <bool name="config_default_enable_smartspace_calendar_selection">true</bool>
     <bool name="config_default_dts2">true</bool>
     <bool name="config_default_auto_show_keyboard_in_drawer">false</bool>
     <bool name="config_default_show_icon_labels_on_home_screen">true</bool>
     <bool name="config_default_show_icon_labels_in_drawer">true</bool>
-    <bool name="config_default_enable_fuzzy_search">false</bool>
-    <bool name="config_default_enable_smartspace">true</bool>
-    <bool name="config_default_enable_feed">false</bool>
+    <bool name="config_default_enable_fuzzy_search">true</bool>
+    <bool name="config_default_enable_smartspace">false</bool>
+    <bool name="config_default_enable_feed">true</bool>
     <bool name="config_default_enable_icon_selection">false</bool>
     <bool name="config_default_show_component_names">false</bool>
     <bool name="config_default_smartspace_show_date">true</bool>
     <bool name="config_default_smartspace_show_time">false</bool>
     <bool name="config_default_perform_wide_search">true</bool>
-    <bool name="config_default_live_information_enabled">true</bool>
-    <bool name="config_default_live_information_show_announcements">true</bool>
     <bool name="config_default_enable_dot_pagination">true</bool>
     <bool name="config_default_enable_material_u_popup">true</bool>
     <bool name="config_default_enable_two_line_allapps">false</bool>
-    <bool name="config_default_enable_nightly_auto_updater">true</bool>
+    <bool name="config_default_enable_nightly_auto_updater">false</bool>
     <bool name="config_default_enable_folder_icon_shape_customization">false</bool>
 
     <item name="config_default_home_icon_size_factor" type="dimen" format="float">1.0</item>

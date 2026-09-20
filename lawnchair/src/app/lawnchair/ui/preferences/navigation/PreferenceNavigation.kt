@@ -27,18 +27,11 @@ import app.lawnchair.ui.preferences.components.search.SearchProviderId
 import app.lawnchair.ui.preferences.components.search.SearchProviderPreferenceScreen
 import app.lawnchair.ui.preferences.destinations.AppDrawerFoldersPreference
 import app.lawnchair.ui.preferences.destinations.AppDrawerPreferences
-import app.lawnchair.ui.preferences.destinations.BackupAndRestorePreference
 import app.lawnchair.ui.preferences.destinations.CustomIconShapePreference
-import app.lawnchair.ui.preferences.destinations.DebugMenuPreferences
 import app.lawnchair.ui.preferences.destinations.DismissedPredictionAppsPreferences
-import app.lawnchair.ui.preferences.destinations.DockPreferences
 import app.lawnchair.ui.preferences.destinations.DummyPreference
-import app.lawnchair.ui.preferences.destinations.ExperimentalFeaturesPreferences
-import app.lawnchair.ui.preferences.destinations.FeatureFlagsPreference
-import app.lawnchair.ui.preferences.destinations.FolderPreferences
 import app.lawnchair.ui.preferences.destinations.FontSelection
 import app.lawnchair.ui.preferences.destinations.GeneralPreferences
-import app.lawnchair.ui.preferences.destinations.GesturePreferences
 import app.lawnchair.ui.preferences.destinations.HiddenAppsPreferences
 import app.lawnchair.ui.preferences.destinations.HomeScreenGridPreferences
 import app.lawnchair.ui.preferences.destinations.HomeScreenPreferences
@@ -48,7 +41,6 @@ import app.lawnchair.ui.preferences.destinations.LauncherPopupPreference
 import app.lawnchair.ui.preferences.destinations.PickAppForGesture
 import app.lawnchair.ui.preferences.destinations.PredictionsPreferences
 import app.lawnchair.ui.preferences.destinations.PreferencesDashboard
-import app.lawnchair.ui.preferences.destinations.QuickstepPreferences
 import app.lawnchair.ui.preferences.destinations.SearchPreferences
 import app.lawnchair.ui.preferences.destinations.SearchProviderPreferences
 import app.lawnchair.ui.preferences.destinations.SelectAppsForDrawerFolder
@@ -98,7 +90,7 @@ fun PreferenceNavigation(
 
             LaunchedEffect(isExpandedScreen) {
                 if (isExpandedScreen) {
-                    navController.navigate(General) {
+                    navController.navigate(HomeScreen) {
                         launchSingleTop = true
                         popUpTo(navController.graph.id)
                     }
@@ -142,9 +134,6 @@ fun PreferenceNavigation(
             deepLinks = getDeepLink(HomeScreenPopupEditor),
         ) { LauncherPopupPreference() }
 
-        composable<Dock>(
-            deepLinks = getDeepLink(Dock),
-        ) { DockPreferences() }
         composable<DockSearchProvider>(
             deepLinks = getDeepLink(DockSearchProvider),
         ) { SearchProviderPreferences() }
@@ -182,21 +171,7 @@ fun PreferenceNavigation(
             SearchProviderPreferenceScreen(route.id)
         }
 
-        composable<Folders>(
-            deepLinks = getDeepLink(Folders),
-        ) { FolderPreferences() }
-
-        composable<Gestures>(
-            deepLinks = getDeepLink(Gestures),
-        ) { GesturePreferences() }
         composable<GesturesPickApp> { PickAppForGesture() }
-
-        composable<Quickstep>(
-            deepLinks = getDeepLink(Quickstep),
-        ) { QuickstepPreferences() }
-        composable<BackupAndRestore>(
-            deepLinks = getDeepLink(BackupAndRestore),
-        ) { BackupAndRestorePreference() }
 
         composable<About>(
             deepLinks = getDeepLink(About),
@@ -204,9 +179,6 @@ fun PreferenceNavigation(
         composable<AboutLicenses>(
             deepLinks = getDeepLink(AboutLicenses),
         ) { Acknowledgements() }
-
-        composable<DebugMenu> { DebugMenuPreferences() }
-        composable<FeatureFlags> { FeatureFlagsPreference() }
 
         composable<SelectIcon> { backStackEntry ->
             val args: SelectIcon = backStackEntry.toRoute()
@@ -219,9 +191,6 @@ fun PreferenceNavigation(
             IconPickerPreference(packageName = args.packageName)
         }
 
-        composable<ExperimentalFeatures>(
-            deepLinks = getDeepLink(ExperimentalFeatures),
-        ) { ExperimentalFeaturesPreferences() }
         composable<Predictions>(
             deepLinks = getDeepLink(Predictions),
         ) { PredictionsPreferences() }
