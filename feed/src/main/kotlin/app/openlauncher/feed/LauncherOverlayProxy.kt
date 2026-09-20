@@ -34,63 +34,46 @@ import com.google.android.libraries.launcherclient.ILauncherOverlayCallback
  * session 沒有收到 `windowDetached`，下一個 session 的 attach 就會被無視——永遠等不到
  * `overlayStatusChanged`，新聞頁一片空白。因此：
  *
- * - 啟動器 unbind（切換提供者、外掛被移除）時，[releaseWindow] 會在斷線**之前**補送
- *   `windowDetached`，把 token 還回去；
+ * - 上游即將被 unbind 時，[onUpstreamReleasing] 會在斷線**之前**補送 `windowDetached`，
+ *   把 token 還回去；
+ * - 換了 callback binder 的新 session 接管同一個 token 之前，也會先還一次（見 [attach]）；
  * - [WindowAttachState] 保證同一個 attach 不會重複送給同一個上游 binder。
  *
- * ## callback 為什麼要包一層
+ * ## 實驗開關
  *
- * `ILauncherOverlayCallback` 原本是直接把啟動器的 binder 原封不動轉交給 Google app，
- * 少一跳 IPC。但這樣一來，「Google app 到底有沒有回報 `overlayStatusChanged`」在外掛這端
- * 完全看不見，實機除錯時只能用猜的。現在改成包一層 [CallbackRelay]：多一次 oneway IPC
- * （捲動期間每幀一次，Pixel 10 實測感覺不出來），換到的是一行決定性的 log，而且上游掛掉時
- * 外掛可以主動送 `overlayStatusChanged(0)` 給啟動器，讓它停止把捲動事件丟進黑洞。
+ * 原本寫死在這個檔案最上面的三個常數（`REWRITE_CLIENT_IDENTITY`／`WRAP_CALLBACK`／
+ * `DETACH_BEFORE_ATTACH`）已經搬到 [FeedFlags]，改成用
+ * `adb shell setprop log.tag.<tag> DEBUG` 即時切換，不必重新建置、不必重新安裝。
+ * 每個開關的假設、做法與實機結果見 [FeedFlags] 的註解與 README §4.10／§4.11。
  *
- * ## attach 內容裡的身分改寫（2026-09-20，release 版啟動器）
- *
- * `windowAttached*` 帶的 `LayoutParams.packageName` 是**啟動器的**套件名。Google app 似乎
- * 拿它去做「系統 app 或 debuggable app」的檢查，於是 release 版啟動器（不是 debuggable）
- * 配同一個外掛時完全等不到 `overlayStatusChanged`。轉送前會把它改成外掛自己的套件名，
- * 細節與理由見 [AttachPayload]。window token 保持不動。
+ * - [FeedFlags.wrapCallback]：把啟動器的 `ILauncherOverlayCallback` 包一層 [CallbackRelay]，
+ *   換到「Google app 到底有沒有回話」這一行決定性的 log，代價是交給 Google app 的 binder
+ *   身分從啟動器變成外掛；
+ * - [FeedFlags.rewriteClientIdentity]：`windowAttached*` 的 `LayoutParams.packageName` 與視窗
+ *   標題寫著**啟動器**是誰，轉送前改寫成外掛自己的（window token 不動，見 [AttachPayload]）。
  *
  * @param ourPackageName 外掛自己的套件名，寫進轉送出去的 `LayoutParams.packageName`。
+ * @param switches 實驗開關的來源，預設讀系統屬性。
  */
-/**
- * 要不要把 `windowAttached*` 裡的客戶端身分欄位改寫成外掛自己的？
- *
- * **實機結論（2026-09-20，Pixel 10）：沒有用。** 把 `layout_params.packageName` 與視窗標題
- * 都換成外掛自己之後，Google app 依然不回報 `overlayStatusChanged`；而同一時間
- * `hasOverlayContent()` 這種阻塞式交易**答得出來**（true），代表它其實願意跟外掛講話，
- * 問題不在「客戶端是誰」。程式碼與這段紀錄留著，是為了不要有人再走一次同一條路。
- */
-private const val REWRITE_CLIENT_IDENTITY = false
-
-/**
- * 要不要把 `ILauncherOverlayCallback` 包一層 `CallbackRelay`？
- *
- * 包起來可以看見「Google app 到底有沒有回話」，但**改變了交給 Google app 的 binder 身分**：
- * 原本是啟動器的（也就是 window token 的擁有者），包起來之後變成外掛的。2026-09-20 實測
- * 唯一能滑出 Discover 的版本（commit 5659722）就是直接原樣轉交的那一版，因此先關掉，
- * 換取與那一版完全相同的 wire 行為。
- */
-private const val WRAP_CALLBACK = false
-
-/**
- * attach 之前要不要先補一發 `windowDetached(false)`？
- *
- * 2026-09-20 實測：沒有用（Google app 留在 `dumpsys window` 裡的那個陳舊
- * `GoogleDiscoverWindow` 不會因此消失）。同樣先關掉，讓 wire 行為與唯一成功過的版本一致。
- */
-private const val DETACH_BEFORE_ATTACH = false
-
 class LauncherOverlayProxy(
     private val ourPackageName: String,
+    private val switches: FeedFlags = FeedFlags.fromSystemProperties,
 ) : ILauncherOverlay.Stub(), GoogleOverlayConnector.Listener {
 
     /** 保護 [remote] / [attachState] / [pendingActivityState]：binder 執行緒與主執行緒都會碰。 */
     private val lock = Any()
 
     private var remote: ILauncherOverlay? = null
+
+    /**
+     * [remote] 底下那個 [IBinder]。
+     *
+     * 為什麼要另外存：`ILauncherOverlay.Stub.asInterface()` 每次都會 new 一個新的 Proxy 物件，
+     * 所以「同一個上游」在兩次 `onServiceConnected` 之間用 `===` 比較會變成不相等，
+     * [WindowAttachState] 就會誤以為換了 binder 而重送一次 attach（同一個 window token 被
+     * 認領兩次，正是 §4.9 那個「Google app 從此不回話」的老毛病）。改以 binder 比對。
+     */
+    private var remoteBinder: IBinder? = null
 
     private val attachState = WindowAttachState<PendingAttach, ILauncherOverlay>()
 
@@ -150,11 +133,19 @@ class LauncherOverlayProxy(
     // region GoogleOverlayConnector.Listener
 
     override fun onUpstreamConnected(component: ComponentName, binder: IBinder) {
-        val overlay = ILauncherOverlay.Stub.asInterface(binder)
+        val overlay: ILauncherOverlay
         val replay: PendingAttach?
         val activityState: Int?
         synchronized(lock) {
+            // 同一個 binder 回來就沿用同一個 interface 物件，[WindowAttachState] 才認得出
+            // 「這個上游已經收過這份 attach 了」。
+            overlay = if (binder === remoteBinder) {
+                remote ?: ILauncherOverlay.Stub.asInterface(binder)
+            } else {
+                ILauncherOverlay.Stub.asInterface(binder)
+            }
             remote = overlay
+            remoteBinder = binder
             replay = attachState.onUpstreamConnected(overlay)
             activityState = pendingActivityState
         }
@@ -201,6 +192,7 @@ class LauncherOverlayProxy(
     private fun onUpstreamLost() {
         val callback = synchronized(lock) {
             remote = null
+            remoteBinder = null
             attachState.onUpstreamLost()
             attachState.pending?.launcherCallback
         }
@@ -221,19 +213,25 @@ class LauncherOverlayProxy(
     // endregion
 
     /**
-     * 啟動器的綁定結束了（切換提供者、外掛被停用、service 被銷毀）。
+     * 上游馬上要被 unbind 了（啟動器全部解除綁定、緩衝期也過了；或 service 正在銷毀），
+     * 但 binder 還活著。
      *
-     * **必須在 unbind 上游之前呼叫。** 把啟動器的 window token 還給 Google app，否則下一個
-     * 提供者（可能是啟動器自己直連 Google app）再拿同一個 token 來 attach 時會被無視。
+     * 這是最後一次能把啟動器的 window token 還給 Google app 的機會：少了這一步，下一個
+     * 提供者（可能是啟動器自己直連 Google app）拿同一個 token 來 attach 會被無視（§4.9）。
+     *
+     * 注意這裡**不是**啟動器每次解除綁定都會走到——[GoogleOverlayConnector] 會先緩衝
+     * [FeedFlags.LINGER_MILLIS]，啟動器在緩衝期內回來的話，session 完全不受影響。
      */
-    fun releaseWindow() {
-        val released = synchronized(lock) { attachState.onDetach() }
-        if (released == null) {
-            FeedLog.i(FeedLog.PROXY, "releaseWindow: nothing was attached")
+    override fun onUpstreamReleasing(component: ComponentName?, binder: IBinder) {
+        val target = synchronized(lock) {
+            if (attachState.onDetach() == null) null else remote
+        }
+        if (target == null) {
+            FeedLog.i(FeedLog.PROXY, "releasing upstream: nothing was attached")
             return
         }
-        FeedLog.i(FeedLog.PROXY, "releaseWindow: handing the launcher window back to the Google app")
-        forward("windowDetached(release)") { it.windowDetached(false) }
+        FeedLog.i(FeedLog.PROXY, "releasing upstream: handing the launcher window back first")
+        forwardTo(target, "windowDetached(release)") { it.windowDetached(false) }
     }
 
     // region ILauncherOverlay - 順序與 AIDL 宣告一致（交易碼 1..17）
@@ -272,7 +270,7 @@ class LauncherOverlayProxy(
             ),
         )
         // 送出去的是改寫過的複本，暫存起來的也是同一份，replay 時內容必定一致。
-        val rewritten = if (REWRITE_CLIENT_IDENTITY) lp?.let { rewriteIdentity(it) } else lp
+        val rewritten = if (switches.rewriteClientIdentity) lp?.let { rewriteIdentity(it) } else lp
         attach(
             PendingAttach("windowAttached", cb) { it.windowAttached(rewritten, relay, flags) },
             "windowAttached(flags=$flags)",
@@ -319,7 +317,8 @@ class LauncherOverlayProxy(
         val relay = callbackFor(cb)
         val keys = runCatching { bundle?.keySet() }.getOrNull()
         // 送出去的是改寫過的複本，暫存起來的也是同一份，replay 時內容必定一致。
-        val rewritten = if (REWRITE_CLIENT_IDENTITY) rewriteAttachBundle(bundle) else describeOnly(bundle)
+        val rewritten =
+            if (switches.rewriteClientIdentity) rewriteAttachBundle(bundle) else describeOnly(bundle)
         attach(
             PendingAttach("windowAttached2", cb) { it.windowAttached2(rewritten, relay) },
             "windowAttached2(keys=$keys)",
@@ -346,9 +345,9 @@ class LauncherOverlayProxy(
 
     // region attach 內容的診斷與改寫
 
-    /** [WRAP_CALLBACK] 為 false 時，原樣把啟動器的 callback binder 交給 Google app。 */
+    /** [FeedFlags.wrapCallback] 為 false 時，原樣把啟動器的 callback binder 交給 Google app。 */
     private fun callbackFor(cb: ILauncherOverlayCallback?): ILauncherOverlayCallback? =
-        if (WRAP_CALLBACK) cb?.let { CallbackRelay(it) } else cb
+        if (switches.wrapCallback) cb?.let { CallbackRelay(it) } else cb
 
     /** 只記錄、不改寫：診斷的那一行還是要有，送出去的仍是原封不動的 bundle。 */
     private fun describeOnly(bundle: Bundle?): Bundle? {
@@ -483,22 +482,48 @@ class LauncherOverlayProxy(
 
     /** `windowAttached` / `windowAttached2` 共用：記住這次 attach，能送就馬上送。 */
     private fun attach(pending: PendingAttach, description: String) {
-        val target = synchronized(lock) {
+        var target: ILauncherOverlay?
+        var supersedesLiveSession: Boolean
+        synchronized(lock) {
             val current = remote
+            supersedesLiveSession = supersedesLiveSession(pending)
             attachState.onAttach(pending, current)
-            current
+            target = current
         }
         FeedLog.i(
             FeedLog.PROXY,
-            "$description -> ${if (target != null) "forwarding now" else "deferred, upstream not ready"}",
+            "$description -> ${if (target != null) "forwarding now" else "deferred, upstream not ready"}" +
+                " | switches: ${switches.describe()}",
         )
-        if (target != null) {
-            deliverAttach(target, pending.name, pending)
+        val overlay = target ?: return
+        if (supersedesLiveSession) {
+            // 新的 session（callback binder 換人了）要接管同一個 window token 之前，先把舊的
+            // 還回去。§4.9 的教訓：Google app 手上還記著同一個 token 時，新的 attach 會被無視。
+            // 只在「真的是新 session」時做——`redraw()` 會用**同一個** callback 重送
+            // `windowAttached2`，那種情況多送一發 detach 反而會把畫面拆掉。
+            FeedLog.i(FeedLog.PROXY, "new callback binder: releasing the previous session first")
+            forwardTo(overlay, "windowDetached(superseded)") { it.windowDetached(false) }
         }
+        deliverAttach(overlay, pending.name, pending)
     }
 
     /**
-     * 送出一次 attach，**前面先補一發 `windowDetached(false)`**。
+     * 這次 attach 是否取代了一個**還活著**的 session？
+     *
+     * 判斷依據是啟動器的 callback binder 有沒有換人：`LauncherClient` 每次重新連線都會丟掉
+     * 舊的 `OverlayCallback` 再 new 一個，而 `redraw()` 重送 attach 時用的是同一個。
+     */
+    private fun supersedesLiveSession(pending: PendingAttach): Boolean {
+        if (!attachState.isDelivered) return false
+        val previous = attachState.pending ?: return false
+        val before = previous.launcherCallback?.asBinder()
+        val now = pending.launcherCallback?.asBinder()
+        return before != null && now != null && before !== now
+    }
+
+    /**
+     * 送出一次 attach；[FeedFlags.detachBeforeAttach] 打開時，前面無條件先補一發
+     * `windowDetached(false)`（`adb shell setprop log.tag.OLFeedDetachPre DEBUG`）。
      *
      * 原因是實機 `dumpsys window` 看到的東西（2026-09-20，Pixel 10）：Google app 在更早的
      * 一次 session 之後，留下一個 `GoogleDiscoverWindow`，掛在**早就死掉的**另一個啟動器
@@ -510,7 +535,7 @@ class LauncherOverlayProxy(
      * 「本來就沒有附著」的情況下對我們自己的實作是 no-op，attach 前先送一發是很便宜的保險。
      */
     private fun deliverAttach(overlay: ILauncherOverlay, name: String, pending: PendingAttach) {
-        if (DETACH_BEFORE_ATTACH) {
+        if (switches.detachBeforeAttach) {
             FeedLog.i(FeedLog.PROXY, "releasing any window the overlay still holds before $name")
             forwardTo(overlay, "windowDetached(before $name)") { it.windowDetached(false) }
         }

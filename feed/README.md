@@ -313,8 +313,10 @@ adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox
   `setServiceState()` 的「沒變就不處理」也會把它連同那行 log 一起吃掉。
 
 現在 `reconnect()` 會依序：送 `windowDetached` → 丟掉舊的 callback binder → `setServiceState(0)`
-→ unbind → 重新解析 API 版本 → 重綁。外掛這端則在 `onUnbind` 時先呼叫
-`LauncherOverlayProxy.releaseWindow()`，把 token 還給 Google app 之後才斷線。
+→ unbind → 重新解析 API 版本 → 重綁。外掛這端則保證「**還沒把 token 還回去就不會斷線**」：
+`ConnectionStateMachine` 會在真正 unbind 之前先通知 `LauncherOverlayProxy.onUpstreamReleasing()`，
+用還活著的 binder 送出 `windowDetached`（§4.11 之後還多了 1 秒緩衝，啟動器在那之內
+重綁的話連線根本不會斷）。
 
 測試（兩個方向都要做）：
 
@@ -367,9 +369,16 @@ bundle 就只有這三個 key。裡面唯一「寫著啟動器是誰」的東西
 | 3 | Google app 還記著上一個 window token（§4.9 的老毛病） | attach 前先補一發 `windowDetached(false)` | 同上；`dumpsys` 裡那個陳舊視窗也沒消失 |
 | 4 | 包一層 `CallbackRelay` 改掉了 callback binder 的身分 | 改回原樣轉交啟動器的 callback（＝唯一成功過那版的 wire 行為） | 同上 |
 
-這四個開關留在 `LauncherOverlayProxy.kt` 最上面（`REWRITE_CLIENT_IDENTITY`、
-`WRAP_CALLBACK`、`DETACH_BEFORE_ATTACH`），目前**全部關閉**，也就是現在送出去的東西
+這四個開關本來是 `LauncherOverlayProxy.kt` 最上面的三個常數（`REWRITE_CLIENT_IDENTITY`、
+`WRAP_CALLBACK`、`DETACH_BEFORE_ATTACH`），目前**全部關閉**——也就是現在送出去的東西
 跟當天唯一成功過的版本一模一樣，只是多了診斷 log。
+**2026-09-20 23:00 起它們搬到 `FeedFlags.kt`，改成 `adb shell setprop` 即時切換，
+不必重新建置（見 §4.11）。**
+
+而且這四項的結論都必須打折扣：它們是在「一個掛在早就死掉的 debug 版啟動器 token 上的
+陳舊 `GoogleDiscoverWindow` 還卡著」的狀態下測的，而且當時**啟動器和外掛兩個變數同時都換了**
+（見下一節）。在 §4.12 步驟 A 做完之前，這張表只能當作「這樣做沒有立刻解決問題」，
+不能當作「這個假說已經被推翻」。
 
 #### 最關鍵的一條新證據：Google app 其實有在跟外掛講話
 
@@ -397,21 +406,298 @@ I OLFeed.Proxy: upstream ping: hasOverlayContent() = true
   都沒有被銷毀，而且**還有別的客戶端綁著**——`com.teslacoilsw.launcherclientproxy`
   （Nova Launcher 的同款外掛，`?v=9`）正連著。
 
-#### 下一步（依序，第一步是決定性的）
+#### 2026-09-20 23:00 這一輪：手機中途被拔線，**沒有任何新的實機結果**
 
-1. **重啟 Google app 再測一次**：`adb shell am force-stop com.google.android.googlequicksearchbox`
-   （或重開機），然後在 release 版啟動器的第一頁向右滑。上面兩條 `dumpsys` 證據都指向
-   「那個 overlay service 實例卡住了」——它握過一個陳舊視窗、又同時被別家外掛綁著。
-   如果重啟後就好了，那麼「release 版啟動器被拒絕」整件事是誤判，真正該寫進文件的是
-   §4.6 那類「Google app 卡住 → 重連」的處理。
-2. 若還是不行，再用**啟動器這一軸**做 A/B：把 debug 版啟動器設為預設桌面、提供者選外掛，
-   同一個外掛再滑一次。成功＝問題真的在啟動器的身分（見下一段），失敗＝問題在裝置目前的
-   Google app 狀態。
-3. 如果最後真的證實 Google app 會去驗「視窗 token 屬於誰」或「目前的預設桌面是誰」，
-   那就不是轉送層能解決的：外掛沒辦法替啟動器的視窗變出另一個身分，除非改成由**外掛自己
-   持有 overlay 視窗**（需要 `SYSTEM_ALERT_WINDOW` 權限、自己處理捲動與層級，與「零權限」
-   的設計前提直接衝突），或是接受啟動器本體 debuggable（安全上不可接受）。這兩條都不建議，
-   應該先把第 1、2 步的證據拿到手。
+這一輪原本要跑 E0–E4 的實驗矩陣，`adb install -r` 送出去的那一刻手機被拔掉，
+之後整輪都是**純主機端**工作。下面的東西分成兩種，請不要混在一起看：
+
+- **拔線前抓到的 `dumpsys`（是實機證據）**；
+- **之後的所有程式修改（全部只有程式碼推論，一行都還沒在機器上跑過）**。
+
+| # | 實驗 | 本輪結果 | 現在怎麼跑 |
+|---|---|---|---|
+| E0 | 基準線：開關全關、抓完整 trace ＋ **Google 程序自己的 log** | **未執行**（拔線）；`install -r` 停在 `- waiting for device -` | §4.12 步驟 B |
+| E1 | `REWRITE_CLIENT_IDENTITY`（乾淨狀態下重測） | **未執行** | `setprop log.tag.OLFeedRewriteId DEBUG`，§4.12 步驟 C |
+| E2 | 上游連線抖動 | **根因已用程式碼確認並修掉**（見下），但**未經實機驗證** | §4.12 共同迴圈的「E2 有沒有生效」 |
+| E3 | 協定版本 | 啟動器端已用程式碼排除（api ≥ 8 無差別）；外掛→Google 的 `v`/`cv` **未執行** | `setprop log.tag.OLFeedV9` / `OLFeedNoCv`，§4.12 步驟 D |
+| E4 | Google 程序在 attach 當下的 log | **未執行**——這是本輪最可惜的一項 | `logcat --pid=<:googleapp>`，§4.12 步驟 B |
+| A | **2×2：啟動器 × 外掛版本**（新增，最優先） | **未執行**；5659722 的 APK 已預先建好 | §4.12 步驟 A |
+
+##### 拔線前抓到的東西
+
+Google app 的程序（`adb shell ps -A | grep googlequicksearchbox`）：
+
+```
+u0_a182  3942  com.google.android.googlequicksearchbox:interactor
+u0_a182  3953  com.google.android.googlequicksearchbox:googleapp   ← overlay service 在這裡
+u0_a182  4062  com.google.android.googlequicksearchbox:search
+```
+
+`adb shell dumpsys activity services com.google.android.googlequicksearchbox`（節錄）：
+
+```
+* ServiceRecord{… /com.google.android.apps.gsa.nowoverlayservice.DrawerOverlayService c:app.openlauncher.feed}
+  processName=com.google.android.googlequicksearchbox:googleapp
+  createTime=-2h26m35s   lastActivity=-1m38s
+  Bindings:
+  * IntentBindRecord{… CREATE}: dat=app://com.teslacoilsw.launcherclientproxy:10364?v=9
+      binder=BinderProxy@b80a292  hasBound=true
+      ConnectionRecord … flags=0x21      ← BIND_AUTO_CREATE|BIND_WAIVE_PRIORITY
+      ConnectionRecord … flags=0x41      ← BIND_AUTO_CREATE|BIND_IMPORTANT
+  * IntentBindRecord{…}:        dat=app://app.openlauncher:10430?v=7&cv=9
+      binder=null   requested=true received=true hasBound=false   ← 沒有任何 client
+  * IntentBindRecord{… CREATE}: dat=app://app.openlauncher.feed:10429?v=7&cv=9
+      binder=BinderProxy@60255de
+      ConnectionRecord … flags=0x1       ← BIND_AUTO_CREATE，只有一條
+  * IntentBindRecord{… CREATE}: dat=app://app.openlauncher.debug:10425?v=7&cv=9
+      binder=BinderProxy@b1fe5d5
+      ConnectionRecord … flags=0x21
+```
+
+三件以前沒寫進來的事實：
+
+1. **release 版啟動器直連 Google app 時，`onBind` 回的是 `null`**
+   （`dat=app://app.openlauncher:10430…` 那筆：`received=true` 但 `binder=null`）。
+   這是「Google app 只服務系統／debuggable 客戶端」這個前提第一次有實機證據，而且證明
+   **那道關卡是在 bind 的時候就擋掉**。走外掛時 bind 是成功的（拿得到 binder，
+   `hasOverlayContent()` 也答得出來），所以「attach 之後石沉大海」跟「bind 被拒」
+   **是兩套不同的機制**，不能拿前者的結論去解釋後者。
+   （小心：`received=true` + `binder=null` 是「`onBind()` 回了 null」在 AMS 裡留下的樣子，
+   這是推論不是直接看到的回傳值；那筆紀錄也是舊的——當下已經沒有任何 client 綁著。
+   要確認的話，在 release 版啟動器把提供者切成「Google」直連，看它的 log 有沒有
+   `onNullBinding` / `bindService … = true` 但永遠沒有 `onServiceConnected`。）
+2. 同一台機器上另一家啟動器的外掛，綁的是 `?v=9`（**沒有 `cv`**），而且用**兩條**連線
+   （`0x21` + `0x41`，正好對應啟動器自己那兩次 `bindService` 的 flags）；我們只綁**一條**
+   `0x1`。這一軸從來沒試過，現在做成可即時切換的開關（§4.11）。
+3. `DrawerOverlayService` 那個實例已經活了 2 小時 26 分、被多家客戶端共用。
+   它裡面任何「以客戶端為單位」的狀態都會跨越我們每一次重新安裝而留下來。
+
+##### 兩個變數從頭到尾沒有分離（這一輪最重要的發現）
+
+唯一一次**實機成功**是：**debug 版啟動器 ＋ commit `5659722` 的外掛**（proxy 模式、
+冷啟動、`0x19`、Discover 真的畫出來）。之後每一次失敗，**啟動器**（debug → release）
+**和外掛程式碼**（`8eec4f5` 以後：`WindowAttachState`、`releaseWindow`、`CallbackRelay`、
+診斷 log…）**同時都換了**。前一輪的實驗 #4 只是把 wire 行為「調回等價」，
+**從來沒有真的把 5659722 那顆 APK 裝回去**。所以 2×2 的表其實只填了兩格：
+
+| | 外掛 = 5659722 | 外掛 = 現在的 HEAD |
+|---|---|---|
+| **debug 版啟動器** | **成功**（唯一一次） | 沒測過 |
+| **release 版啟動器** | 沒測過 | 失敗 |
+
+補上另外兩格是下一次接上手機的**第一件事**（§4.12 步驟 A），在那之前
+「release 版啟動器被 Google app 擋掉」只是假說，不是結論。
+`5659722` 的外掛已經預先建好放在 `feed/build/ab-test/`（§4.12）。
+
+##### 上游連線抖動的根因（純程式碼分析，file:line）
+
+22:48:24 那次 trace 裡的 `upstream gone (null)` → 40 毫秒後 `connected`，來源是這一串：
+
+1. `adb install -r` 一次更新會送出**三個**廣播：`PACKAGE_REMOVED`（`EXTRA_REPLACING=true`）、
+   `PACKAGE_ADDED`（`EXTRA_REPLACING=true`）、`PACKAGE_REPLACED`。
+   `LauncherClient.googleInstallListener`（`lawnchair/src/com/google/android/libraries/launcherclient/LauncherClient.java`）
+   以前三個都做一次 `reconnect()`——這就是 21:50:08 那兩行 `reconnect: releasing…` 的來源。
+2. 每一次 `reconnect()` 都 `mBaseService.disconnect()` + `mLauncherService.disconnect()`
+   （同檔 `reconnect()`），啟動器的**兩條** binding 一起消失。
+3. 兩條都消失 → 外掛的 `OverlayBridgeService.onUnbind()` 被呼叫 → 舊碼在那裡
+   `proxy.releaseWindow()` + `connector.detach(proxy)`，`ConnectionStateMachine.detach()`
+   最後一個客戶端走掉就**立刻** `UNBIND`（舊碼 `ConnectionStateMachine.kt:105-109`）。
+4. 啟動器 40 毫秒後重綁 → `onRebind` → `attach` → `BIND` → 新的 binder。
+
+也就是說：**一次 `install -r` 會讓外掛對 Google app 的連線被拆掉重建兩到三次**，
+而 `windowAttached2` 就在這段時間內被轉送出去——很可能送在一個馬上要作廢的 binder 上。
+另外 `releaseWindow()` 會把暫存的 attach 清掉（`WindowAttachState.onDetach()`），
+所以新的連線起來時 replay 的是「nothing」，能不能補上完全取決於啟動器自己會不會再送一次。
+
+這件事**不需要**猜 Google app 在想什麼就知道是錯的，所以這一輪直接修掉（§4.11）。
+
+##### E3（協定版本）的啟動器端結論：api ≥ 8 完全沒有差別
+
+`LauncherClient` 只在四個地方看 `apiVersion`（同檔）：
+
+| 條件 | 行為 | 位置 |
+|---|---|---|
+| `< 3` | 用 `windowAttached`，否則 `windowAttached2` | `exchangeConfig()` |
+| `< 4` | 用 `onResume`/`onPause`，否則 `setActivityState` | `onResume()`／`onPause()`／`exchangeConfig()` |
+| `>= 6` | 才會送 `startSearch` | `startSearch()` |
+| `>= 7` | `redraw()` 才會重送一次 attach | `redraw()` |
+
+**8、9、10、11 之間沒有任何分支。** 外掛在 manifest 宣告 `service.api.version=7`
+或 11，啟動器送出來的東西**一模一樣**；直連時 log 裡那個 `api 11` 只是 Google app 自己
+宣告的值，不代表走了不同的協定。而且兩條路徑送給 Google app 的 URI 都是 `?v=7&cv=9`
+（`LauncherClient.getIntent()` 寫死 7／9）。
+**所以 E3 真正還沒試過的只有一件事：外掛自己去綁 Google app 時用的 `v` / `cv`**——
+那一項已經做成可即時切換（§4.11）。宣告給啟動器看的那個值要改仍然得重新建置，
+但依上表，那是沒有意義的一軸。
+
+### 4.11 實驗開關：不必重新建置就能切換（2026-09-20）
+
+原本寫死在 `LauncherOverlayProxy.kt` 最上面的三個常數已經搬到 `FeedFlags.kt`，
+改成讀 **`log.tag.*` 系統屬性**：
+
+```bash
+adb shell setprop log.tag.OLFeedRewriteId DEBUG   # 打開
+adb shell setprop log.tag.OLFeedRewriteId INFO    # 關掉
+adb shell am force-stop app.openlauncher.feed     # 讓外掛從乾淨狀態重來
+```
+
+為什麼是這個機制：外掛**刻意不要任何權限**，adb 寫不進它的私有目錄，`settings put`
+屬於改系統設定（實機除錯時不該動），自訂 broadcast 又要多一個 exported 元件。
+而 `Log.isLoggable(tag, DEBUG)` 是公開 API，底下讀的就是 `log.tag.<tag>` 系統屬性，
+`setprop` 不需要任何權限、不改任何系統設定、**重開機自動消失**。
+屬性沒設時預設是 INFO，所以 `isLoggable(…, DEBUG)` 回 false ＝**全部開關預設關閉**，
+也就是與 2026-09-20 唯一成功過那版相同的 wire 行為。
+
+| 屬性（前面都要加 `log.tag.`） | 打開之後 | 對應的舊常數／假說 |
+|---|---|---|
+| `OLFeedRewriteId` | `windowAttached*` 的 `layout_params.packageName` 與視窗標題改寫成外掛自己的 | `REWRITE_CLIENT_IDENTITY`（假說 #1／#2） |
+| `OLFeedWrapCb` | 啟動器的 `ILauncherOverlayCallback` 包一層 `CallbackRelay`（看得到 Google app 有沒有回話；交給 Google app 的 binder 身分變成外掛的） | `WRAP_CALLBACK`（假說 #4） |
+| `OLFeedDetachPre` | 每次 attach 前無條件補一發 `windowDetached(false)` | `DETACH_BEFORE_ATTACH`（假說 #3） |
+| `OLFeedNoLinger` | 關掉「最後一個客戶端走了先等 1 秒」的緩衝，回到舊的「立刻 unbind」 | 用來**重現** 22:48 那次的上游抖動 |
+| `OLFeedBindImp` | 綁 Google app 時多加 `BIND_IMPORTANT`（`0x41`） | 對照另一家外掛的兩條連線 |
+| `OLFeedV9` / `OLFeedV11` | 外掛綁 Google app 的 URI 變成 `?v=9` / `?v=11` | E3 |
+| `OLFeedNoCv` | URI 整個不帶 `cv` 參數（另一家外掛就是這樣） | E3 |
+
+每一次 attach 與每一次綁上游都會把目前的開關印在同一行 log 裡，事後看 trace 就知道
+那一筆是哪個變體送出去的：
+
+```
+I OLFeed.Upstream: binding: com.android.launcher3.WINDOW_OVERLAY data=app://app.openlauncher.feed:10429?v=7&cv=9 …
+                   flags=0x1 | switches: rewriteId=false wrapCb=false detachPre=false linger=1000ms bindFlags=0x1 upstream=v7,cv9
+I OLFeed.Proxy:    windowAttached2(keys=[…]) -> forwarding now | switches: …
+```
+
+#### 同一輪改掉的兩個真 bug（與上面的假說無關）
+
+1. **外掛**：最後一個客戶端解除綁定後**不再立刻拆掉 Google app 的連線**，而是先等
+   `FeedFlags.LINGER_MILLIS`（1 秒）。啟動器在那之內回來（換提供者、套件更新廣播）時，
+   上游連線與 window session 完全不受影響（`ConnectionStateMachine` 新增 `LINGERING` 狀態）。
+   真的要拆線時，會**先**用還活著的 binder 送 `windowDetached` 再 unbind
+   （`ConnectionEffect.notifyReleasing`），順序由狀態機保證。
+2. **啟動器**：一次 `install -r` 的三個廣播只做**一次** `reconnect()`
+   （`EXTRA_REPLACING` 的 ADDED／REMOVED 直接略過，再加 200 毫秒去抖動）。
+
+另外兩個比較小的：`ILauncherOverlay.Stub.asInterface()` 每次都 new 一個新物件，
+所以上游 binder 的「是不是同一個」改用 `IBinder` 比對（否則會對同一個 binder 重送 attach）；
+以及「新的 session（callback binder 換人了）接管同一個 window token 之前先還一次」——
+只在 callback binder 真的換人時做，因為 `redraw()` 會用**同一個** callback 重送
+`windowAttached2`，那種情況多送一發 detach 會把畫面拆掉。
+
+### 4.12 下一次接上手機的實驗流程（RUNBOOK）
+
+先設好：
+
+```bash
+ADB="C:\Users\starw\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+CUR=feed/build/outputs/apk/release/open-launcher-feed-release.apk
+OLD=feed/build/ab-test/open-launcher-feed-5659722-release.apk      # 已預先建好，git 忽略
+```
+
+兩顆 APK 的 `applicationId`、`versionCode`（都是 1）、簽章（debug key，
+SHA-256 `bbdcc66c…ee19`）完全相同，`android:debuggable` 也都是 true，
+所以可以互相 `adb install -r` 蓋過去。萬一出現 `INSTALL_FAILED_VERSION_DOWNGRADE`，
+加 `-d`。
+
+**每一個實驗的共同迴圈**（不必重新建置，一次大約 30 秒）：
+
+```bash
+$ADB shell setprop log.tag.<開關> DEBUG        # 見 §4.11；不改開關就跳過
+$ADB logcat -c
+$ADB shell am force-stop app.openlauncher.feed # 外掛重來
+$ADB shell am force-stop app.openlauncher      # 它是預設桌面，會自己馬上重開並重綁
+# 等 15 秒
+$ADB logcat -d -s OLFeed.Service OLFeed.Upstream OLFeed.Proxy OLFeed.Callback LauncherClient
+```
+
+- **成功**＝`I LauncherClient: overlay status changed: 0x19 (scroll events accepted)`
+  （走外掛時前面還會有 `I OLFeed.Callback: overlayStatusChanged(0x19)`，
+  但那一行只有 `OLFeedWrapCb` 打開時才會出現）。
+- **失敗**＝停在 `I LauncherClient: windowAttached2 sent (api 7, flags 15), waiting for
+  overlayStatusChanged`，之後沒有任何 `overlay status changed`。
+- **E2 有沒有生效**：整段 trace 裡**不應該**再出現 `OLFeed.Upstream: upstream gone`
+  夾在兩次 `connected` 之間，而且一次 `install -r` 只會有**一行**
+  `LauncherClient: reconnect: releasing…`。
+
+#### 步驟 A（最優先）：補上 2×2 的另外兩格
+
+在跑任何假說之前先做，因為現在「啟動器換了」和「外掛換了」兩個變數是綁在一起的。
+
+- **A-1　release 啟動器 ＋ 5659722 外掛**：`$ADB install -r $OLD`，然後跑共同迴圈。
+  （release 版啟動器是預設桌面、永遠活著，裝完自己就會重連，不需要碰螢幕。）
+- **A-2　debug 啟動器 ＋ 5659722 外掛**：debug 版啟動器**不是**預設桌面，我們不做輸入
+  注入、不用 `am start`、也不改預設桌面 role，所以這一格**必須請使用者動手**：
+  請他在 debug 版啟動器裡把「設定 → 主畫面 → 新聞頁 → 提供者」選成 Open Launcher Feed，
+  然後把那個啟動器開起來（或由他自己暫時把它設為預設桌面）。
+  之後一樣用 `$ADB logcat -d -s …` 收 log。
+- **A-3　debug 啟動器 ＋ 現在的外掛**：`$ADB install -r $CUR`，重複 A-2 的人工步驟。
+
+判讀表：
+
+| A-1（release + 5659722） | A-3（debug + 現在的） | 結論 |
+|---|---|---|
+| 成功 | 任意 | **問題出在 `8eec4f5` 之後的外掛改動**，不是啟動器身分 → 用 `git archive` 逐個 commit 二分搜尋 |
+| 失敗 | 成功 | 外掛沒壞，差別真的在**啟動器**（release vs debug）→ 繼續步驟 C（E1） |
+| 失敗 | 失敗 | 兩邊都不成立 → 嫌疑最大的是**裝置當下的 Google app 狀態**（那個活了 2.5 小時、被多家客戶端共用的 service 實例）→ 直接跳步驟 E |
+| 成功 | 失敗 | 只有「現在的外掛 ＋ release 啟動器」這一格壞 → 回到步驟 C／D |
+
+#### 步驟 B：E0 基準線（現在的外掛、開關全關）＋ **Google 程序的 log**
+
+```bash
+$ADB shell ps -A | grep googlequicksearchbox          # 記下 :googleapp 的 pid
+$ADB logcat -c
+$ADB install -r $CUR
+# 等 20 秒
+$ADB logcat -d --pid=<googleapp 的 pid>               # ★ attach 當下 Google 自己說了什麼
+$ADB logcat -d -s OLFeed.Service OLFeed.Upstream OLFeed.Proxy OLFeed.Callback LauncherClient
+$ADB shell dumpsys window windows | grep -i -B2 -A25 discover
+```
+
+`--pid` 那一行是這一輪**沒能抓到、但最有價值**的證據。要找的是 Google 程序在 attach
+瞬間有沒有：`BadTokenException`、`token … is not valid; is your activity running?`、
+`permission denied for window type`、`Unable to add window`、
+`W WindowManager` / `E ViewRootImpl` 之類。
+
+- 有 → Google **試著**建視窗但被 WMS 擋掉 ⇒ 問題在 window token 的歸屬，轉送層救不了。
+- 完全沒有 → Google **根本沒去建視窗** ⇒ 它在更早的地方就決定不理這次 attach，
+  那還是「它在檢查什麼」的問題，繼續步驟 C／D。
+
+#### 步驟 C：E1（改寫客戶端身分）
+
+```bash
+$ADB shell setprop log.tag.OLFeedRewriteId DEBUG
+```
+然後跑共同迴圈。log 裡要看到
+`layout_params.packageName rewritten app.openlauncher -> app.openlauncher.feed`。
+沒用的話再加 `$ADB shell setprop log.tag.OLFeedWrapCb DEBUG` 一起試
+（兩個都開＝前一輪 #1+#2+#4 的組合，但這次是在乾淨狀態下）。
+測完記得 `setprop log.tag.OLFeedRewriteId INFO` 關回去。
+
+#### 步驟 D：E3（協定版本／連線 flags）
+
+```bash
+$ADB shell setprop log.tag.OLFeedV9 DEBUG      # 上游 URI → ?v=9&cv=9
+$ADB shell setprop log.tag.OLFeedNoCv DEBUG    # 再拿掉 cv → ?v=9（＝另一家外掛的形狀）
+$ADB shell setprop log.tag.OLFeedBindImp DEBUG # 綁上游時多加 BIND_IMPORTANT
+```
+確認生效：`OLFeed.Upstream: binding: … data=app://app.openlauncher.feed:10429?v=9 …`。
+宣告給**啟動器**看的 `service.api.version`（manifest 裡那個 7）改不了、也沒有意義，
+理由見 §4.10 的 `LauncherClient` 版本分支表。
+
+#### 步驟 E（最後手段，**要先問使用者**）：重啟 Google app
+
+```bash
+$ADB shell am force-stop com.google.android.googlequicksearchbox
+```
+
+這會影響使用者正在用的 app（而且會順便踢掉另一家啟動器的外掛連線），
+**未經同意不要做**。做完之後重跑步驟 B。如果重啟後就好了，那整件事是
+「overlay service 實例卡住」，該寫進文件的是 §4.6 那類重連處理，而不是身分問題。
+
+#### 如果最後真的證實 Google app 會驗「視窗 token 屬於誰」
+
+那就不是轉送層能解決的：外掛沒辦法替啟動器的視窗變出另一個身分。剩下的兩條路
+——**外掛自己持有 overlay 視窗**（要 `SYSTEM_ALERT_WINDOW`，與「零權限」的設計前提衝突）
+或**啟動器本體 debuggable**（安全上不可接受）——都不建議，應該先把步驟 A～E 的證據拿到手。
 
 ## 5. 已知風險
 

@@ -36,18 +36,23 @@ object OverlayProtocol {
      *
      * overlay service 會從這個 URI 認出「誰要綁我」，所以外掛去綁 Google app 時
      * 必須填自己的套件名與自己的 UID，不能沿用啟動器的。
+     *
+     * @param clientVersion `cv=` 的值；傳 null 代表**整個 `cv` 參數都不要**。
+     *   實機觀察（2026-09-20，`dumpsys activity services`）：同一台機器上另一家啟動器的
+     *   外掛綁同一個 service 用的是 `app://<它的套件>:<uid>?v=9`，沒有 `cv`。這一軸值得試，
+     *   所以做成可調（見 [FeedFlags.upstreamClientVersion]）。
      */
     fun buildUri(
         packageName: String,
         uid: Int,
         apiVersion: Int = API_VERSION,
-        clientVersion: Int = CLIENT_VERSION,
+        clientVersion: Int? = CLIENT_VERSION,
     ): String {
         require(packageName.isNotBlank()) { "packageName must not be blank" }
         require(uid >= 0) { "uid must not be negative" }
         return "$SCHEME://$packageName:$uid" +
             "?$QUERY_API_VERSION=$apiVersion" +
-            "&$QUERY_CLIENT_VERSION=$clientVersion"
+            (clientVersion?.let { "&$QUERY_CLIENT_VERSION=$it" } ?: "")
     }
 
     /**

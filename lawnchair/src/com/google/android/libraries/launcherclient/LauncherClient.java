@@ -39,6 +39,29 @@ public class LauncherClient {
     public final LauncherClientService mLauncherService;
 
     /**
+     * One package update must cause exactly one reconnect. Installing a package delivers up to
+     * three broadcasts we listen for - {@code PACKAGE_REMOVED} and {@code PACKAGE_ADDED}, both
+     * carrying {@link Intent#EXTRA_REPLACING}, plus {@code PACKAGE_REPLACED} - and acting on all
+     * of them used to tear the overlay down and build it up again two or three times in a row.
+     * <p>
+     * LC-Fix (2026-09-20): on device that burst showed up on the companion side as
+     * "upstream gone / connected" twice inside 40 ms, which means {@code windowAttached2} could
+     * be forwarded on a binder that was about to be replaced.
+     */
+    private static final long RECONNECT_DEBOUNCE_MS = 200L;
+
+    private final Handler mReconnectHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable mReconnectRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!mDestroyed) {
+                reconnect();
+            }
+        }
+    };
+
+    /**
      * Reconnects when either the feed companion app or the Google app is installed, updated or
      * removed. Without watching the companion package, installing Open Launcher Feed while the
      * launcher is already running would leave the feed dead until the launcher process restarts.
@@ -46,8 +69,20 @@ public class LauncherClient {
     public final BroadcastReceiver googleInstallListener = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.i(TAG, "feed provider package changed: " + intent.getAction() + " " + intent.getData());
-            reconnect();
+            String action = intent.getAction();
+            boolean replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false);
+            // An update is represented by PACKAGE_REPLACED; the ADDED/REMOVED pair that comes
+            // with it is the same event seen twice more.
+            if (replacing && !Intent.ACTION_PACKAGE_REPLACED.equals(action)) {
+                Log.i(TAG, "feed provider package changed: " + action + " " + intent.getData()
+                        + " (replacing; folded into the PACKAGE_REPLACED reconnect)");
+                return;
+            }
+            Log.i(TAG, "feed provider package changed: " + action + " " + intent.getData());
+            // Coalesce whatever is left: the companion and the Google app can be updated back
+            // to back, and one reconnect covers both.
+            mReconnectHandler.removeCallbacks(mReconnectRunnable);
+            mReconnectHandler.postDelayed(mReconnectRunnable, RECONNECT_DEBOUNCE_MS);
         }
     };
 
@@ -239,6 +274,7 @@ public class LauncherClient {
 
     public void onDestroy() {
         mDestroyed = true;
+        mReconnectHandler.removeCallbacks(mReconnectRunnable);
         try {
             mActivity.unregisterReceiver(googleInstallListener);
         } catch (Exception ignored) {

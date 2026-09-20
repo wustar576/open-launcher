@@ -37,6 +37,17 @@ class OverlayProtocolTest {
     }
 
     @Test
+    fun `the cv parameter can be dropped entirely`() {
+        // 實機觀察：另一家外掛綁同一個 service 用的是 app://<套件>:<uid>?v=9（沒有 cv）。
+        assertEquals(
+            "app://pkg:1?v=9",
+            OverlayProtocol.buildUri("pkg", 1, apiVersion = 9, clientVersion = null),
+        )
+        assertEquals("pkg", OverlayProtocol.packageNameOf("app://pkg:1?v=9"))
+        assertEquals(1, OverlayProtocol.uidOf("app://pkg:1?v=9"))
+    }
+
+    @Test
     fun `rejects nonsense input`() {
         assertThrows(IllegalArgumentException::class.java) { OverlayProtocol.buildUri("", 1) }
         assertThrows(IllegalArgumentException::class.java) { OverlayProtocol.buildUri("pkg", -1) }

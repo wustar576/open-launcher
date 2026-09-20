@@ -25,12 +25,21 @@ import android.os.Process
 class GoogleOverlayConnector(
     private val context: Context,
     private val handler: Handler = Handler(Looper.getMainLooper()),
+    private val flags: FeedFlags = FeedFlags.fromSystemProperties,
 ) {
 
     interface Listener {
         fun onUpstreamConnected(component: ComponentName, binder: IBinder)
         fun onUpstreamDisconnected(component: ComponentName?)
         fun onUpstreamUnavailable(reason: String)
+
+        /**
+         * 上游馬上就要被 unbind 了，但 binder 現在**還活著**。
+         *
+         * 要把啟動器的 window token 還給 Google app（`windowDetached`）就只剩這個時機，
+         * unbind 之後那個 binder 就再也送不出東西。預設什麼都不做。
+         */
+        fun onUpstreamReleasing(component: ComponentName?, binder: IBinder) = Unit
     }
 
     private val machine = ConnectionStateMachine<Listener>()
@@ -97,9 +106,18 @@ class GoogleOverlayConnector(
         apply(machine.detachAll())
     }
 
-    /** 建立要送給 Google app 的 intent；URI 帶的是**外掛自己的**套件名與 UID。 */
+    /**
+     * 建立要送給 Google app 的 intent；URI 帶的是**外掛自己的**套件名與 UID。
+     *
+     * `v=` / `cv=` 可以用系統屬性即時改（見 [FeedFlags]），不必重新建置。
+     */
     fun buildUpstreamIntent(): Intent {
-        val uri = OverlayProtocol.buildUri(context.packageName, Process.myUid())
+        val uri = OverlayProtocol.buildUri(
+            packageName = context.packageName,
+            uid = Process.myUid(),
+            apiVersion = flags.upstreamApiVersion,
+            clientVersion = flags.upstreamClientVersion,
+        )
         return Intent(OverlayProtocol.ACTION_WINDOW_OVERLAY)
             .setPackage(OverlayProtocol.GOOGLE_APP_PACKAGE)
             .setData(Uri.parse(uri))
@@ -114,13 +132,30 @@ class GoogleOverlayConnector(
     }
 
     private fun apply(effect: ConnectionEffect<Listener>) {
+        // 順序是契約的一部分：unbind 之前先讓客戶端用還活著的 binder 把 window token 還回去。
+        val liveBinder = upstreamBinder
+        if (liveBinder != null) {
+            effect.notifyReleasing.forEach {
+                safely { it.onUpstreamReleasing(boundComponent, liveBinder) }
+            }
+        }
+
         when (effect.command) {
-            UpstreamCommand.BIND -> doBind()
-            UpstreamCommand.UNBIND -> doUnbind()
+            UpstreamCommand.BIND -> {
+                cancelLingerTimer()
+                doBind()
+            }
+            UpstreamCommand.UNBIND -> {
+                cancelLingerTimer()
+                doUnbind()
+            }
             UpstreamCommand.REBIND -> {
+                cancelLingerTimer()
                 doUnbind()
                 doBind()
             }
+            UpstreamCommand.SCHEDULE_UNBIND -> scheduleLingerTimer()
+            UpstreamCommand.CANCEL_UNBIND -> cancelLingerTimer()
             null -> Unit
         }
 
@@ -135,10 +170,37 @@ class GoogleOverlayConnector(
         }
     }
 
+    /**
+     * 最後一個客戶端走了，先等一下再拆線。
+     *
+     * 為什麼（2026-09-20 22:48 實機 log）：啟動器收到外掛的 `PACKAGE_REPLACED` 廣播會
+     * `reconnect()`，也就是「兩條 binding 全部 unbind → 立刻重綁」。舊行為在這 40 毫秒
+     * 之間把 Google app 的連線整個拆掉重建，於是那一次的 `windowAttached2` 可能剛好被送到
+     * 一個馬上要作廢的 binder 上。等 [FeedFlags.LINGER_MILLIS] 之後再拆，啟動器回來時
+     * 連線根本沒斷過（[UpstreamCommand.CANCEL_UNBIND]）。
+     */
+    private fun scheduleLingerTimer() {
+        cancelLingerTimer()
+        val delay = flags.lingerMillis
+        FeedLog.i(FeedLog.UPSTREAM, "last client left; keeping the upstream for ${delay}ms")
+        handler.postDelayed(lingerTimeout, delay)
+    }
+
+    private fun cancelLingerTimer() = handler.removeCallbacks(lingerTimeout)
+
+    private val lingerTimeout = Runnable {
+        FeedLog.i(FeedLog.UPSTREAM, "linger expired; releasing the upstream for real")
+        apply(machine.onLingerExpired())
+    }
+
     private fun doBind() {
         if (bound) return
         val intent = buildUpstreamIntent()
-        FeedLog.i(FeedLog.UPSTREAM, "binding: ${intent.action} data=${intent.data} pkg=${intent.`package`}")
+        FeedLog.i(
+            FeedLog.UPSTREAM,
+            "binding: ${intent.action} data=${intent.data} pkg=${intent.`package`} " +
+                "flags=${AttachPayload.hex(flags.upstreamBindFlags)} | switches: ${flags.describe()}",
+        )
         if (!isGoogleAppAvailable()) {
             FeedLog.e(
                 FeedLog.UPSTREAM,
@@ -148,7 +210,7 @@ class GoogleOverlayConnector(
             return
         }
         val ok = try {
-            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            context.bindService(intent, connection, flags.upstreamBindFlags)
         } catch (t: Throwable) {
             FeedLog.e(FeedLog.UPSTREAM, "bindService threw", t)
             false

@@ -26,6 +26,9 @@ class OverlayBridgeService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
 
+    /** 實機實驗開關（`adb shell setprop log.tag.OLFeed… DEBUG`），見 [FeedFlags]。 */
+    private val flags = FeedFlags.fromSystemProperties
+
     private lateinit var connector: GoogleOverlayConnector
     private lateinit var mode: BridgeMode
 
@@ -35,17 +38,18 @@ class OverlayBridgeService : Service() {
     override fun onCreate() {
         super.onCreate()
         mode = resolveMode()
-        connector = GoogleOverlayConnector(applicationContext, handler)
+        connector = GoogleOverlayConnector(applicationContext, handler, flags)
         FeedLog.i(
             FeedLog.SERVICE,
             "onCreate: mode=$mode, package=$packageName, " +
-                "googleApp=${if (connector.isGoogleAppAvailable()) "available" else "MISSING"}",
+                "googleApp=${if (connector.isGoogleAppAvailable()) "available" else "MISSING"} | " +
+                "switches: ${flags.describe()}",
         )
         when (mode) {
             BridgeMode.BRIDGE -> bridgeBinder = BridgeBinder(connector, handler)
             // 外掛自己的套件名要交給 proxy：轉送 windowAttached* 之前，
             // LayoutParams.packageName 會被改寫成它（見 AttachPayload）。
-            BridgeMode.OVERLAY_PROXY -> overlayProxy = LauncherOverlayProxy(packageName)
+            BridgeMode.OVERLAY_PROXY -> overlayProxy = LauncherOverlayProxy(packageName, flags)
         }
     }
 
@@ -74,12 +78,11 @@ class OverlayBridgeService : Service() {
         FeedLog.i(FeedLog.SERVICE, "onUnbind: data=${intent.data}, releasing upstream")
         bridgeBinder?.releaseAll()
         overlayProxy?.let { proxy ->
-            handler.post {
-                // 順序很重要：一定要在 unbind 之前把啟動器的 window token 還給 Google app，
-                // 否則下一個提供者拿同一個 token 來 attach 時會被無視（見 LauncherOverlayProxy）。
-                proxy.releaseWindow()
-                connector.detach(proxy)
-            }
+            // detach 不會馬上拆線：連線會多留 FeedFlags.LINGER_MILLIS，啟動器在那之內
+            // 重綁（換提供者、收到套件更新廣播）時，上游與 window session 完全不受影響。
+            // 真的要拆線時，connector 會先呼叫 proxy.onUpstreamReleasing()，在 unbind 之前
+            // 把啟動器的 window token 還給 Google app（見 LauncherOverlayProxy）。
+            handler.post { connector.detach(proxy) }
         }
         // 回傳 true 才會在下次綁定時收到 onRebind。
         return true
@@ -87,11 +90,8 @@ class OverlayBridgeService : Service() {
 
     override fun onDestroy() {
         FeedLog.i(FeedLog.SERVICE, "onDestroy")
-        val proxy = overlayProxy
-        handler.post {
-            proxy?.releaseWindow()
-            connector.detachAll()
-        }
+        // service 要沒了，沒有「等它回來」這回事：detachAll 立刻放手（一樣會先還 token）。
+        handler.post { connector.detachAll() }
         super.onDestroy()
     }
 

@@ -48,7 +48,11 @@
             host 不同（有時是啟動器套件名+UID，有時只有套件名），限制 host 會讓
             resolveService() 找不到我們。也不能宣告 mimeType。
           - service.api.version=7：啟動器會從「實際綁定的套件」讀這個值來決定
-            要走哪一版的協定。
+            要走哪一版的協定。這個值**只能在這裡改、改了就得重新建置**（啟動器是用
+            PackageManager 讀 meta-data 的），但依 README §4.10 的分析，`LauncherClient`
+            對 api ≥ 8 完全沒有任何分支：宣告 7 或 11，啟動器送出來的東西一模一樣。
+            真正還沒試過的是「外掛去綁 Google app 時 URI 帶的 v/cv」，那一項不必重新
+            建置就能切換（`setprop log.tag.OLFeedV9|OLFeedV11|OLFeedNoCv DEBUG`，見 §4.11）。
           - bridge_mode：proxy（設計 A，回傳 ILauncherOverlay 的轉送 Stub，**預設**）或
             bridge（設計 B，回傳 amirz.aidlbridge.IBridge）。
             改這裡再重裝就能切換，不需要改程式碼。
