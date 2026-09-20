@@ -15,13 +15,14 @@ import com.android.launcher3.views.OptionsPopupView.OptionItem
 import com.patrykmichalik.opto.core.setBlocking
 
 object LauncherOptionsPopup {
+    // Near-stock: only Wallpaper, Widgets and Home settings are enabled by default (spec §5/§7).
     val DEFAULT_ORDER = listOf(
-        LauncherOptionPopupItem("carousel", true),
+        LauncherOptionPopupItem("carousel", false),
         LauncherOptionPopupItem("lock", false),
         LauncherOptionPopupItem("edit_mode", false),
         LauncherOptionPopupItem("wallpaper", true),
         LauncherOptionPopupItem("widgets", true),
-        LauncherOptionPopupItem("all_apps", true),
+        LauncherOptionPopupItem("all_apps", false),
         LauncherOptionPopupItem("home_settings", true),
         LauncherOptionPopupItem("sys_settings", false),
         LauncherOptionPopupItem("default_page", false),

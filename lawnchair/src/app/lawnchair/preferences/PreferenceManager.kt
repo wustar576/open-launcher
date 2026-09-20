@@ -69,9 +69,9 @@ class PreferenceManager @Inject constructor(
     val iconPackPackage = StringPref("pref_iconPackPackage", "", reloadIcons)
     val themedIconPackPackage = StringPref("pref_themedIconPackPackage", "", reloadIcons)
     val allowRotation = BoolPref("pref_allowRotation", false)
-    val wrapAdaptiveIcons = BoolPref("prefs_wrapAdaptive", true)
+    val wrapAdaptiveIcons = BoolPref("prefs_wrapAdaptive", false)
     val transparentIconBackground = BoolPref("prefs_transparentIconBackground", false)
-    val shadowBGIcons = BoolPref("pref_shadowBGIcons", true)
+    val shadowBGIcons = BoolPref("pref_shadowBGIcons", false)
     val addIconToHome = BoolPref("pref_add_icon_to_home", true)
 
     private val isPhone: Boolean get() = deviceType == InvariantDeviceProfile.TYPE_PHONE
@@ -80,9 +80,8 @@ class PreferenceManager @Inject constructor(
     private val isDesktop: Boolean get() = deviceType == InvariantDeviceProfile.TYPE_DESKTOP
 
     val calculatedGridSpec = when {
-        // This grid configuration is perfect for Phone, tested against Pixel 7,
-        // alternative dense configuration can be 5x5x7
-        isPhone -> LayoutConfig(4, 4, 6)
+        // This grid configuration is near-stock (5 dock icons, 5x5 workspace grid)
+        isPhone -> LayoutConfig(5, 5, 5)
 
         // This grid configuration is perfect for Tablet, tested against Pixel Tablet
         isTablet -> LayoutConfig(6, 6, 5)
@@ -109,7 +108,7 @@ class PreferenceManager @Inject constructor(
     val workspaceIncreaseMaxGridSize = BoolPref("pref_workspace_increase_max_grid_size", false)
     val folderRows = IdpIntPref("pref_folderRows", { numFolderRows[INDEX_DEFAULT] }, reloadGrid)
 
-    val drawerOpacity = FloatPref("pref_drawerOpacity", .5f, recreate)
+    val drawerOpacity = FloatPref("pref_drawerOpacity", 1f, recreate)
     val coloredBackgroundLightness = FloatPref("pref_coloredBackgroundLightness", 1F)
     val feedProvider = StringPref("pref_feedProvider", "")
     val ignoreFeedWhitelist = BoolPref("pref_ignoreFeedWhitelist", false)
@@ -155,7 +154,7 @@ class PreferenceManager @Inject constructor(
     val searchResultAllFiles = BoolPref("pref_searchResultAllFiles", false, recreate)
     val searchResultAudio = BoolPref("pref_searchResultAudio", false, recreate)
     val searchResultVisualMedia = BoolPref("pref_searchResultVisualMedia", false, recreate)
-    val searchResultStartPageSuggestion = BoolPref("pref_searchResultStartPageSuggestion", true, recreate)
+    val searchResultStartPageSuggestion = BoolPref("pref_searchResultStartPageSuggestion", false, recreate)
     val searchResultSettingsEntry = BoolPref("pref_searchResultSettingsEntry", false, recreate)
     val searchResulRecentSuggestion = BoolPref("pref_searchResultRecentSuggestion", false, recreate)
 

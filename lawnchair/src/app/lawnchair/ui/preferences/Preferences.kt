@@ -42,7 +42,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.window.layout.DisplayFeature
 import app.lawnchair.ui.preferences.destinations.PreferencesDashboard
-import app.lawnchair.ui.preferences.navigation.General
+import app.lawnchair.ui.preferences.navigation.HomeScreen
 import app.lawnchair.ui.preferences.navigation.IconPicker
 import app.lawnchair.ui.preferences.navigation.PreferenceNavigation
 import app.lawnchair.ui.preferences.navigation.PreferenceRootRoute
@@ -84,7 +84,7 @@ fun Preferences(
         windowSizeClass.heightSizeClass in
         setOf(WindowHeightSizeClass.Expanded, WindowHeightSizeClass.Medium)
 
-    val defaultStartingRoute = if (isExpandedScreen) General else Root
+    val defaultStartingRoute = if (isExpandedScreen) HomeScreen else Root
     val startingRoute = startDestination ?: defaultStartingRoute
 
     val blacklistedRoute = startingRoute::class in twoPaneBlacklist

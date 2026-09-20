@@ -50,11 +50,6 @@ data object HomeScreen : PreferenceRootRoute, PreferenceDeepLink {
 }
 
 @Serializable
-data object Dock : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/dock"
-}
-
-@Serializable
 data object AppDrawer : PreferenceRootRoute, PreferenceDeepLink {
     override val deepLink = "$URI/app-drawer"
 }
@@ -67,25 +62,9 @@ data class Search(val selectedId: SearchRoute = SearchRoute.DOCK_SEARCH) :
     override val deepLink = "$URI/search"
 }
 
-@Serializable
-data object Folders : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/folders"
-}
-
-@Serializable
-data object Quickstep : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/quickstep"
-}
-
-@Serializable
-data object BackupAndRestore : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/backup-restore"
-}
-
-@Serializable
-data object Gestures : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/gestures"
-}
+// Note: the standalone Gestures settings page/route was removed as part of settings-UI
+// pruning (spec §7). Only the "pick an app" sub-route (GesturesPickApp, below) remains,
+// since it is used by the double-tap gesture control embedded in Home Screen preferences.
 
 @Serializable
 data object Smartspace : PreferenceRootRoute, PreferenceDeepLink {
@@ -98,23 +77,12 @@ data object About : PreferenceRootRoute, PreferenceDeepLink {
 }
 
 @Serializable
-data object ExperimentalFeatures : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/experimental-features"
-}
-
-@Serializable
 data object Predictions : PreferenceRoute, PreferenceDeepLink {
     override val deepLink = "$URI/predictions"
 }
 
 @Serializable
 data object DismissedPredictionApps : PreferenceRoute
-
-@Serializable
-data object DebugMenu : PreferenceRootRoute
-
-@Serializable
-data object FeatureFlags : PreferenceRoute
 
 // General section routes
 @Serializable

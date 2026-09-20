@@ -17,7 +17,6 @@
 package app.lawnchair.preferences2
 
 import android.content.Context
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.datastore.preferences.core.Preferences
@@ -51,7 +50,6 @@ import app.lawnchair.theme.color.ColorStyle
 import app.lawnchair.ui.popup.LauncherOptionsPopup
 import app.lawnchair.ui.popup.toOptionOrderString
 import app.lawnchair.ui.preferences.components.HiddenAppsInSearch
-import app.lawnchair.ui.preferences.data.liveinfo.LiveInformationManager
 import app.lawnchair.util.kotlinxJson
 import app.lawnchair.views.overlay.FullScreenOverlayMode
 import com.android.launcher3.BuildConfig
@@ -71,7 +69,6 @@ import com.android.launcher3.util.DaggerSingletonObject
 import com.android.launcher3.util.DynamicResource
 import com.android.launcher3.util.SafeCloseable
 import com.patrykmichalik.opto.core.PreferenceManager
-import com.patrykmichalik.opto.core.firstBlocking
 import com.patrykmichalik.opto.core.setBlocking
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -95,8 +92,6 @@ class PreferenceManager2 @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val resourceProvider = DynamicResource.provider(context)
-    private var liveInformationManager: LiveInformationManager =
-        LiveInformationManager.getInstance(context)
 
     private fun idpPreference(
         key: Preferences.Key<Int>,
@@ -296,9 +291,7 @@ class PreferenceManager2 @Inject constructor(
 
     val hotseatQsbProvider = preference(
         key = stringPreferencesKey(name = "dock_search_bar_provider"),
-        defaultValue = getRemoteDefault("dock_search_bar_provider")?.let {
-            QsbSearchProvider.fromId(it)
-        } ?: QsbSearchProvider.resolveDefault(context),
+        defaultValue = QsbSearchProvider.resolveDefault(context),
         parse = { QsbSearchProvider.fromId(it) },
         save = { it.id },
     )
@@ -446,7 +439,7 @@ class PreferenceManager2 @Inject constructor(
 
     val searchAlgorithm = preference(
         key = stringPreferencesKey(name = "search_algorithm"),
-        defaultValue = LawnchairSearchAlgorithm.LOCAL_SEARCH,
+        defaultValue = LawnchairSearchAlgorithm.APP_SEARCH,
         onSet = { reloadHelper.recreate() },
     )
 
@@ -610,8 +603,7 @@ class PreferenceManager2 @Inject constructor(
     val webSuggestionProvider = preference(
         key = stringPreferencesKey(name = "web_suggestion_provider"),
         defaultValue = WebSearchProvider.fromString(
-            getRemoteDefault("web_suggestion_provider")
-                ?: context.resources.getString(R.string.config_default_web_suggestion_provider),
+            context.resources.getString(R.string.config_default_web_suggestion_provider),
         ),
         parse = { WebSearchProvider.fromString(it) },
         save = { it.toString() },
@@ -735,27 +727,27 @@ class PreferenceManager2 @Inject constructor(
 
     val smartspaceAagWidget = preference(
         key = booleanPreferencesKey("enable_smartspace_aag_widget"),
-        defaultValue = true,
+        defaultValue = false,
     )
 
     val smartspaceBatteryStatus = preference(
         key = booleanPreferencesKey("enable_smartspace_battery_status"),
-        defaultValue = true,
+        defaultValue = false,
     )
 
     val smartspaceTorch = preference(
         key = booleanPreferencesKey("enable_smartspace_torch"),
-        defaultValue = true,
+        defaultValue = false,
     )
 
     val smartspaceNowPlaying = preference(
         key = booleanPreferencesKey("enable_smartspace_now_playing"),
-        defaultValue = true,
+        defaultValue = false,
     )
 
     val smartspaceOnboarding = preference(
         key = booleanPreferencesKey("enable_smartspace_onboarding"),
-        defaultValue = true,
+        defaultValue = false,
     )
 
     val smartspaceShowDate = preference(
@@ -790,7 +782,7 @@ class PreferenceManager2 @Inject constructor(
 
     val wallpaperDepthEffect = preference(
         key = booleanPreferencesKey(name = "enable_wallpaper_depth_effect"),
-        defaultValue = true,
+        defaultValue = false,
         onSet = { reloadHelper.recreate() },
     )
 
@@ -812,7 +804,7 @@ class PreferenceManager2 @Inject constructor(
 
     val doubleTapGestureHandler = serializablePreference<GestureHandlerConfig>(
         key = stringPreferencesKey("double_tap_gesture_handler"),
-        defaultValue = GestureHandlerConfig.Sleep,
+        defaultValue = GestureHandlerConfig.NoOp,
     )
 
     val sleepMode = preference(
@@ -960,17 +952,6 @@ class PreferenceManager2 @Inject constructor(
         scope.cancel()
     }
 
-    private fun getRemoteDefault(key: String): String? = liveInformationManager.liveInformation
-        .firstBlocking()
-        .features[key]
-        .also { value ->
-            if (value == null) {
-                Log.d(TAG, "getRemoteDefault: $key -> no remote default")
-            } else {
-                Log.d(TAG, "getRemoteDefault: $key -> $value")
-            }
-        }
-
     companion object {
         private val Context.preferencesDataStore by preferencesDataStore(
             name = "preferences",
@@ -982,8 +963,6 @@ class PreferenceManager2 @Inject constructor(
 
         @JvmStatic
         fun getInstance(context: Context) = INSTANCE.get(context)!!
-
-        private const val TAG = "PreferenceManager2"
     }
 }
 
