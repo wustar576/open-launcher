@@ -49,6 +49,14 @@ public class LauncherClientBridge extends IBridgeCallback.Stub implements Servic
                 }
             } else {
                 Log.i(TAG, "got overlay binder from " + name + " (" + descriptor + ")");
+                if (descriptor.isEmpty()) {
+                    // LC-Note: an empty descriptor means the remote answered INTERFACE_TRANSACTION
+                    // with nothing, which we have seen when the Google app is handing out an
+                    // overlay binder while its process is still coming back up. Calls on it are
+                    // silently dropped, so say so rather than leaving a dead feed unexplained.
+                    Log.w(TAG, "overlay binder from " + name + " has no interface descriptor; "
+                            + "the overlay will most likely not respond");
+                }
                 mClientService.onServiceConnected(name, service);
                 mConnectionName = name;
             }

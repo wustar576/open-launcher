@@ -316,7 +316,13 @@ public class LauncherClient {
                 } else {
                     mOverlay.onPause();
                 }
-            } catch (RemoteException ignored) {
+                Log.i(TAG, "windowAttached2 sent (api " + apiVersion + ", flags " + mFlags
+                        + "), waiting for overlayStatusChanged");
+            } catch (RemoteException e) {
+                // LC-Fix: this used to be swallowed, which made a dead overlay binder (e.g. after
+                // the Google app was killed and the bridge re-connected) indistinguishable from a
+                // working one that simply never reports a status.
+                Log.e(TAG, "windowAttached2 failed; the feed will stay empty", e);
             }
         }
     }
@@ -422,6 +428,8 @@ public class LauncherClient {
 
     void setServiceState(int serviceState) {
         if (mServiceState != serviceState) {
+            Log.i(TAG, "overlay status changed: 0x" + Integer.toHexString(serviceState)
+                    + " (scroll events " + (((serviceState & 1) != 0) ? "accepted)" : "dropped)"));
             mServiceState = serviceState;
             mScrollCallback.onServiceStateChanged((serviceState & 1) != 0);
         }

@@ -287,7 +287,7 @@
     <string name="community">社群</string>
     <string name="telegram">Telegram </string>
     <string name="news">新聞</string>
-    <string name="legal">Legal</string>
+    <string name="legal">法律資訊</string>
     <string name="acknowledgements">銘謝</string>
     <string name="privacy_policy">隱私權政策</string>
     <string name="contributor_status_active">Active</string>
@@ -358,6 +358,13 @@
     <string name="sleep_mode_root">Root</string>
     <string name="sleep_mode_accessibility">Accessibility service</string>
     <string name="sleep_mode_device_admin">Device admin</string>
+    <!--
+
+    About the app
+
+    -->
+    <string name="about_derived_notice">Open Launcher 衍生自 Lawnchair 與 AOSP Launcher3 專案，是獨立的分支，與 Lawnchair 團隊無關，亦未獲其背書或支援。</string>
+
     <!--
 
     Bug reporting

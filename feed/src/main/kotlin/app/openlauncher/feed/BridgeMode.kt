@@ -30,8 +30,18 @@ enum class BridgeMode(val manifestValue: String) {
     ;
 
     companion object {
-        /** meta-data 缺漏或無法辨識時採用的預設值。 */
-        val DEFAULT = BRIDGE
+        /**
+         * meta-data 缺漏或無法辨識時採用的預設值。
+         *
+         * 2026-09-20 於 Pixel 10（Android 16）實測：`BRIDGE` 幾乎必定失敗——Google app
+         * 交回來的 binder 在啟動器這一端連 `getInterfaceDescriptor()` 都是空字串，
+         * `windowAttached2` 不會拋例外但永遠等不到 `overlayStatusChanged`，於是捲動事件
+         * 全被丟掉。也就是 README 第 5 節風險 1 的情況：Google app 每一筆交易都重新檢查
+         * `Binder.getCallingUid()`，binder 交還啟動器之後呼叫者變成啟動器的 UID。
+         * `OVERLAY_PROXY` 所有交易都由外掛程序發出，實測可正常顯示 Discover，
+         * 因此預設改為 proxy。
+         */
+        val DEFAULT = OVERLAY_PROXY
 
         const val META_DATA_NAME = "app.openlauncher.feed.bridge_mode"
 

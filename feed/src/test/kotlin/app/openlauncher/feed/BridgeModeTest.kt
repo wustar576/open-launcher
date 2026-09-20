@@ -11,9 +11,11 @@ import org.junit.Test
 class BridgeModeTest {
 
     @Test
-    fun `defaults to the bridge design when the meta-data is missing`() {
-        assertEquals(BridgeMode.BRIDGE, BridgeMode.fromManifestValue(null))
-        assertEquals(BridgeMode.BRIDGE, BridgeMode.DEFAULT)
+    fun `defaults to the proxy design when the meta-data is missing`() {
+        // Real device (Pixel 10 / Android 16): the bridge design never receives
+        // overlayStatusChanged, so proxy is the shipping default. See BridgeMode.DEFAULT.
+        assertEquals(BridgeMode.OVERLAY_PROXY, BridgeMode.fromManifestValue(null))
+        assertEquals(BridgeMode.OVERLAY_PROXY, BridgeMode.DEFAULT)
     }
 
     @Test
@@ -29,8 +31,8 @@ class BridgeModeTest {
 
     @Test
     fun `falls back instead of crashing on a typo`() {
-        assertEquals(BridgeMode.BRIDGE, BridgeMode.fromManifestValue("proxxy"))
-        assertEquals(BridgeMode.BRIDGE, BridgeMode.fromManifestValue(""))
+        assertEquals(BridgeMode.OVERLAY_PROXY, BridgeMode.fromManifestValue("proxxy"))
+        assertEquals(BridgeMode.OVERLAY_PROXY, BridgeMode.fromManifestValue(""))
     }
 
     @Test

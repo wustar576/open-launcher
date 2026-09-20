@@ -49,9 +49,12 @@
             resolveService() 找不到我們。也不能宣告 mimeType。
           - service.api.version=7：啟動器會從「實際綁定的套件」讀這個值來決定
             要走哪一版的協定。
-          - bridge_mode：bridge（設計 B，回傳 amirz.aidlbridge.IBridge）或
-            proxy（設計 A，回傳 ILauncherOverlay 的轉送 Stub）。
-            實機階段可直接改這裡再重裝，不需要改程式碼。
+          - bridge_mode：proxy（設計 A，回傳 ILauncherOverlay 的轉送 Stub，**預設**）或
+            bridge（設計 B，回傳 amirz.aidlbridge.IBridge）。
+            改這裡再重裝就能切換，不需要改程式碼。
+            2026-09-20 Pixel 10 / Android 16 實測：bridge 模式拿不到 overlayStatusChanged
+            （Google app 每筆交易都重驗呼叫者 UID），只有 proxy 能真的叫出 Discover，
+            所以預設是 proxy。
         -->
         <service
             android:name=".OverlayBridgeService"
@@ -67,7 +70,7 @@
                 android:value="7" />
             <meta-data
                 android:name="app.openlauncher.feed.bridge_mode"
-                android:value="bridge" />
+                android:value="proxy" />
         </service>
 
         <!--

@@ -42,23 +42,28 @@ Google app」，而那正是它公開提供的功能。請不要把這個 flag �
 
 | 模式 | `onBind()` 回傳 | 說明 |
 |---|---|---|
-| `bridge`（預設） | `amirz.aidlbridge.IBridge` | 外掛只負責「代綁」，把 Google 的 binder 交還啟動器，之後不在資料路徑上。 |
-| `proxy` | `ILauncherOverlay` 的 Stub | 外掛實作全部 17 個交易並逐一轉送。所有呼叫都由外掛的程序發出。 |
+| `proxy`（**預設**，實機可用） | `ILauncherOverlay` 的 Stub | 外掛實作全部 17 個交易並逐一轉送。所有呼叫都由外掛的程序發出。 |
+| `bridge`（實機失敗，僅供對照） | `amirz.aidlbridge.IBridge` | 外掛只負責「代綁」，把 Google 的 binder 交還啟動器，之後不在資料路徑上。 |
 
 切換方式：改 `src/main/AndroidManifest.xml` 裡的
 
 ```xml
-<meta-data android:name="app.openlauncher.feed.bridge_mode" android:value="bridge" />
+<meta-data android:name="app.openlauncher.feed.bridge_mode" android:value="proxy" />
 ```
 
-把 `bridge` 改成 `proxy`，重新編譯安裝即可，不需要改程式碼。
+把 `proxy` 改成 `bridge`（或反過來），重新編譯安裝即可，不需要改程式碼。
 
-**為什麼兩種都做**：Google app 在 `onBind()` 時會依 data URI 裡的套件名／UID 與
-`Binder.getCallingUid()` 驗證客戶端身分——那一刻的呼叫者是外掛（debuggable），所以
-兩種模式都能通過。但 `bridge` 模式把 binder 交還之後，**後續每一筆交易的
-`getCallingUid()` 會變成啟動器的 UID**。如果 Google app 只在 bind 時驗證一次，
-`bridge` 可行；如果它每筆交易都重驗，`bridge` 會失敗而 `proxy` 不會。在沒有實機可
-驗證之前無法確定是哪一種，因此兩條路都實作好，實機階段改一行 manifest 就能對照。
+**實機結論（2026-09-20，Pixel 10 / Android 16 / Google app 正式版）**：Google app
+**每一筆交易都重新驗證呼叫者**。`bridge` 模式把 binder 交還啟動器之後，
+`getCallingUid()` 變成啟動器的 UID，Google app 就當作陌生人：
+
+- 啟動器這端連 `IBinder.getInterfaceDescriptor()` 都拿到空字串；
+- `windowAttached2()` 不會丟 `RemoteException`（oneway），但**永遠等不到
+  `overlayStatusChanged`**，於是啟動器把所有捲動事件丟掉，向右滑完全沒反應。
+
+`proxy` 模式所有交易都由外掛程序發出，實測可以正常滑出 Discover、捲動跟手、
+Google app 被 `force-stop` 後會自動重連。因此 `proxy` 成為預設值，`bridge` 保留
+在程式碼裡只是為了對照與未來 Google 若改變行為時可切換。
 
 （另一個兩者共通的風險：overlay 視窗是掛在啟動器傳過來的 window token 上的。
 那個 token 在兩種模式裡都一樣是啟動器的，所以這一項不構成兩者的差異。）
@@ -174,7 +179,13 @@ adb shell pm list packages | grep googlequicksearchbox
    - debug 版啟動器本身是 debuggable，所以開關仍可操作（會直連 Google app）；
      release 版啟動器則會看到停用的開關與「需要安裝 Open Launcher Feed」。
 3. 回到桌面，在第一頁**向右滑**。
-   - **預期**：桌面不會往右捲、沒有任何畫面、沒有當機。只是一般的「滑不動」。
+   - **release 版啟動器的預期**：桌面不會往右捲、沒有任何畫面、沒有當機。只是一般的
+     「滑不動」。
+   - **debug 版啟動器實測（2026-09-20）**：會直接滑出 Discover。因為 debug build 本身是
+     debuggable，`FeedBridge.isPrivilegedClient` 成立，`LauncherClient` 直接綁
+     `com.google.android.googlequicksearchbox`（logcat：`bindService(com.google.android.
+     googlequicksearchbox, ...) = true`、`overlay api version 11`）。這是預期行為，不是
+     bug，但代表**用 debug build 驗不到「沒有外掛時滑不動」這件事**。
 
 ### 4.2 安裝外掛
 
@@ -191,44 +202,50 @@ adb install -r feed/build/outputs/apk/debug/feed-debug.apk
 
 - 回設定頁，「取得 Open Launcher Feed」那一列應該消失。
 
-### 4.3 綁定（bridge 模式，預設）
+### 4.3 綁定（proxy 模式，預設）✅ 已實機驗證
 
-回到桌面並在第一頁向右滑。預期的 logcat 順序：
+回到桌面並在第一頁向右滑。實機（Pixel 10 / Android 16）看到的 logcat：
 
 ```
-I LauncherClient:       bindService(app.openlauncher.feed, data=app://<啟動器套件>:<uid>?v=7&cv=9, flags=...) = true
-I OLFeed.Service:       onCreate: mode=BRIDGE, package=app.openlauncher.feed, googleApp=available
-I OLFeed.Service:       onBind: data=app://<啟動器套件>:<uid>?v=7&cv=9 -> BRIDGE
-I LauncherClientBridge: bound to bridge ComponentName{...OverlayBridgeService}, asking it to connect on our behalf
-I OLFeed.Bridge:        bindService(flags=...) from android.os.BinderProxy@..., now 1 client(s)
+I LauncherClient:       bindService(app.openlauncher.feed, data=app://<啟動器套件>:<uid>?v=7&cv=9, flags=..., bridge=true) = true
+I OLFeed.Service:       onCreate: mode=OVERLAY_PROXY, package=app.openlauncher.feed, googleApp=available
+I OLFeed.Service:       onBind: data=app://<啟動器套件>:<uid>?v=7&cv=9 -> OVERLAY_PROXY
 I OLFeed.Upstream:      binding: com.android.launcher3.WINDOW_OVERLAY data=app://app.openlauncher.feed:<外掛 uid>?v=7&cv=9 pkg=com.google.android.googlequicksearchbox
-I OLFeed.Upstream:      bindService returned true, waiting for onServiceConnected
-I OLFeed.Upstream:      connected to ComponentName{com.google.android.googlequicksearchbox/...}
-I OLFeed.Bridge:        handing Google overlay binder to android.os.BinderProxy@...
-I LauncherClientBridge: got overlay binder from ... (com.google.android.libraries.launcherclient.ILauncherOverlay)
+I OLFeed.Upstream:      connected to ComponentInfo{com.google.android.googlequicksearchbox/....DrawerOverlayService}
+I OLFeed.Proxy:         windowAttached2(keys=[layout_params, client_options, configuration])
+I OLFeed.Proxy:         upstream ready (...), replaying pending state
+I LauncherClientBridge: got overlay binder from ComponentInfo{app.openlauncher.feed/...OverlayBridgeService} (com.google.android.libraries.launcherclient.ILauncherOverlay)
+I LauncherClient:       windowAttached2 sent (api 7, flags 15), waiting for overlayStatusChanged
+I LauncherClient:       overlay status changed: 0x19 (scroll events accepted)
 ```
 
-- 啟動器會綁兩次，所以 `OLFeed.Bridge: bindService(...) ... now 2 client(s)` 應該出現
-  第二次，但 `OLFeed.Upstream: binding:` **只能出現一次**。
-- **預期畫面**：向右滑出 Discover 新聞頁，可以跟著手指移動。
+- **最關鍵的一行是最後一行**：`overlay status changed: 0x…`，bit0 = 1 才代表 Google
+  接受了我們，捲動事件不會被丟掉。
+- 啟動器會綁兩次，所以上面多數行會出現兩次；`OLFeed.Upstream: binding:` 只送一次。
+- **實機畫面**：向右滑出 Discover 新聞頁，捲動跟著手指，向左滑回桌面，按 HOME 離開。
 
 ### 4.4 如果滑得出來但沒有內容／捲動被忽略
 
-表示 overlay 沒有回報 `overlayStatusChanged` bit0 = 1。檢查：
+表示 overlay 沒有回報 `overlayStatusChanged` bit0 = 1（logcat 裡就是看不到
+`LauncherClient: overlay status changed:`）。檢查：
 
 - `OLFeed.Upstream: connected to ...` 有沒有出現；
-- Google app 是否登入帳號、Discover 是否在 Google app 設定中開啟。
+- Google app 是否登入帳號、Discover 是否在 Google app 設定中開啟；
+- 是不是被切回 `bridge` 模式了（見 4.5）。
 
-### 4.5 如果 4.3 連得上但滑動無反應 → 換 proxy 模式
+### 4.5 bridge 模式：實機失敗的樣子（僅供對照）
 
-這正是 (B) 失敗、(A) 可能成功的情況（Google app 每筆交易都重驗身分）。
+把 `bridge_mode` 改回 `bridge` 重新安裝，實機會看到：
 
-1. 把 `src/main/AndroidManifest.xml` 的 `bridge_mode` 改成 `proxy`。
-2. 重新 `assembleDebug` 並 `adb install -r`。
-3. 重開啟動器（`adb shell am force-stop <啟動器套件>`）後再滑一次。
-4. 預期會看到 `OLFeed.Service: onCreate: mode=OVERLAY_PROXY`，以及
-   `OLFeed.Proxy: windowAttached2(keys=[...])`、`OLFeed.Proxy: dropping onScroll: ...`
-   （只在上游還沒連上時）等等。
+```
+I LauncherClientBridge: got overlay binder from ComponentInfo{com.google.android.googlequicksearchbox/...} ()
+W LauncherClientBridge: overlay binder from ... has no interface descriptor; the overlay will most likely not respond
+I LauncherClient:       windowAttached2 sent (api 7, flags 15), waiting for overlayStatusChanged
+（之後沒有任何 overlay status changed，向右滑沒反應）
+```
+
+空的 interface descriptor + 永遠不來的 `overlayStatusChanged` = Google app 每筆交易
+都重驗呼叫者 UID，binder 交還啟動器之後就不認帳。這就是預設改用 `proxy` 的原因。
 
 ### 4.6 斷線與重連
 
@@ -262,11 +279,11 @@ adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox
 
 ## 5. 已知風險
 
-1. **(B) bridge 模式的身分問題（最大的未知數）**：binder 交還啟動器之後，
-   後續交易的 `Binder.getCallingUid()` 是啟動器的 UID。Google app 若每筆交易都驗證，
-   就會失敗。應對方式見 4.5（切到 `proxy`）。**尚未實機驗證。**
-2. **(A) proxy 模式的效能**：捲動事件每一筆都多一次 IPC。雖然是 oneway，仍可能在
-   低階裝置上造成掉幀。**尚未實機驗證。**
+1. ~~**(B) bridge 模式的身分問題**~~ → **已實機證實會失敗**（2026-09-20，Pixel 10 /
+   Android 16）：binder 交還啟動器之後，後續交易的 `Binder.getCallingUid()` 是啟動器的
+   UID，Google app 每筆交易都重驗，於是完全不回應。預設因此改為 `proxy`。
+2. **(A) proxy 模式的效能**：捲動事件每一筆都多一次 IPC。實機（Pixel 10）滑動跟手、
+   看不出掉幀；低階裝置尚未驗證。
 3. **協定本身沒有官方文件**：交易順序（spec §8.4）若與裝置上 Google app 實際使用的
    版本不同，呼叫會打到錯誤的方法。`TransactionOrderTest` 只能保證我們自己沒有改動
    順序，不能保證順序本身正確。

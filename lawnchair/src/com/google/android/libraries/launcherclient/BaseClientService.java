@@ -14,25 +14,36 @@ public class BaseClientService implements ServiceConnection {
     private boolean mConnected;
     private final Context mContext;
     private final int mFlags;
-    private final ServiceConnection mBridge;
+
+    /**
+     * The {@link ServiceConnection} handed to {@code bindService()}. It has to be re-chosen on
+     * every {@link #connect()}: whether we talk to the feed companion (which answers with
+     * {@code amirz.aidlbridge.IBridge}) or straight to the Google app (which answers with
+     * {@code ILauncherOverlay}) depends on whether the companion is installed *right now*.
+     * <p>
+     * LC-Fix: this used to be decided once in the constructor, so installing Open Launcher Feed
+     * while the launcher was already running left us binding the companion but reading its
+     * {@code IBridge} binder as if it were an overlay — every overlay call then went nowhere and
+     * the feed stayed dead until the launcher process was restarted.
+     */
+    private ServiceConnection mBridge;
 
     BaseClientService(Context context, int flags) {
         mContext = context;
         mFlags = flags;
-        // LauncherClientBridge copes with both a direct ILauncherOverlay and an IBridge proxy,
-        // so it is safe to always use it when any bridge package is resolvable.
-        mBridge = FeedBridge.useBridge(context)
-                ? new LauncherClientBridge(this, flags)
-                : this;
     }
 
     public final boolean connect() {
         if (!mConnected) {
-            Intent intent = LauncherClient.getIntent(mContext, FeedBridge.useBridge(mContext));
+            boolean useBridge = FeedBridge.useBridge(mContext);
+            Intent intent = LauncherClient.getIntent(mContext, useBridge);
+            // LauncherClientBridge copes with both a direct ILauncherOverlay and an IBridge proxy,
+            // so it is safe to always use it when a bridge package is resolvable.
+            mBridge = useBridge ? new LauncherClientBridge(this, mFlags) : this;
             try {
                 mConnected = mContext.bindService(intent, mBridge, mFlags);
                 Log.i(TAG, "bindService(" + intent.getPackage() + ", data=" + intent.getData()
-                        + ", flags=" + mFlags + ") = " + mConnected);
+                        + ", flags=" + mFlags + ", bridge=" + useBridge + ") = " + mConnected);
             } catch (Throwable e) {
                 Log.e(TAG, "Unable to connect to overlay service " + intent.getPackage(), e);
             }
@@ -42,6 +53,7 @@ public class BaseClientService implements ServiceConnection {
 
     public final void disconnect() {
         if (mConnected) {
+            // Unbind with the very same ServiceConnection instance we bound with.
             mContext.unbindService(mBridge);
             mConnected = false;
         }

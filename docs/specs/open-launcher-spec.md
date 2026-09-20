@@ -115,7 +115,9 @@ Google app 只接受「系統 app」或「debuggable app」作為 overlay 客戶
   - #1 `oneway void bindService(in IBridgeCallback cb, in int flags)`
   - `IBridgeCallback`：#1 `oneway void onServiceConnected(in ComponentName name, in IBinder service)`、#2 `oneway void onServiceDisconnected(in ComponentName name)`
 
-**建議採 (B)**：外掛收到 `bindService` 後，以自己的身分去綁 Google app（`com.google.android.googlequicksearchbox`，同一個 action，data URI 的套件名與 UID 換成外掛自己的），取得 binder 後經 `cb.onServiceConnected` 交給啟動器。如此外掛不需要實作 overlay 的每個方法。若實測 (B) 行不通，再退回 (A) 並逐一轉送。
+原本建議採 (B)：外掛收到 `bindService` 後，以自己的身分去綁 Google app（`com.google.android.googlequicksearchbox`，同一個 action，data URI 的套件名與 UID 換成外掛自己的），取得 binder 後經 `cb.onServiceConnected` 交給啟動器。
+
+**實機結論（2026-09-20，Pixel 10 / Android 16）：(B) 行不通，正式採 (A)。** Google app 每一筆交易都重新驗證呼叫者；binder 交還啟動器之後 `Binder.getCallingUid()` 變成啟動器的 UID，Google app 就完全不回應（`getInterfaceDescriptor()` 回空字串，永遠等不到 `overlayStatusChanged`，捲動事件全被丟掉）。(A) 由外掛逐一轉送 17 個交易，所有呼叫都由外掛程序發出，實測可正常滑出 Discover。外掛的 `bridge_mode` meta-data 預設值因此改為 `proxy`；(B) 的程式碼保留供對照。
 
 ### 8.4 `ILauncherOverlay` 交易順序（順序即 transaction code，不可更動）
 

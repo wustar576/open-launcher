@@ -22,9 +22,15 @@
     android:layout_height="match_parent"
     android:layout_gravity="center"
     android:orientation="vertical"
-    android:paddingLeft="@dimen/dynamic_grid_cell_padding_x"
-    android:paddingRight="@dimen/dynamic_grid_cell_padding_x"
     android:focusable="true" >
+    <!--
+      LC-Fix: no paddingLeft/Right here. The label below already carries
+      @dimen/dynamic_grid_cell_padding_x through style BaseIcon.AllApps, exactly like the
+      BubbleTextView of an app cell; adding it again on the root made the folder label ~16dp
+      narrower than an app label, so category names ellipsised one character earlier
+      ("影音娛樂" -> "影..."). The icon preview is centred on getMeasuredWidth()
+      (PreviewItemManager#computePreviewDrawingParams), so dropping the padding does not move it.
+    -->
     <com.android.launcher3.views.DoubleShadowBubbleTextView
         style="@style/BaseIcon.AllApps"
         android:id="@+id/folder_icon_name"

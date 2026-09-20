@@ -395,7 +395,9 @@
 
     <string name="legal">Legal</string>
     <string name="acknowledgements">Acknowledgements</string>
-    <string name="about_derived_notice">Open Launcher is derived from Open Launcher and the AOSP Launcher3 project. It is an independent fork and is not affiliated with, endorsed by, or supported by the Open Launcher team.</string>
+    <!-- LC-Fix: this notice must name the upstream project (Lawnchair); the rebranding pass had
+         replaced "Lawnchair" here too, leaving "Open Launcher is derived from Open Launcher". -->
+    <string name="about_derived_notice">Open Launcher is derived from Lawnchair and the AOSP Launcher3 project. It is an independent fork and is not affiliated with, endorsed by, or supported by the Lawnchair team.</string>
 
 
     <!--
