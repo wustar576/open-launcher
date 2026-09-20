@@ -20,11 +20,14 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.lawnchair.LawnchairApp
 import app.lawnchair.data.iconoverride.IconOverrideRepository
 import app.lawnchair.nexuslauncher.OverlayCallbackImpl
@@ -48,6 +51,7 @@ import app.lawnchair.ui.preferences.components.layout.PreferenceGroup
 import app.lawnchair.ui.preferences.components.layout.PreferenceLayout
 import app.lawnchair.ui.preferences.navigation.HomeScreenGrid
 import app.lawnchair.util.collectAsStateBlocking
+import app.lawnchair.util.getDefaultResolveInfo
 import com.android.launcher3.LauncherAppState
 import com.android.launcher3.LauncherSettings
 import com.android.launcher3.R
@@ -100,6 +104,18 @@ fun HomeScreenPreferences(
                 prefs.infiniteScrolling.getAdapter(),
                 label = stringResource(id = R.string.infinite_scrolling_label),
                 description = stringResource(id = R.string.infinite_scrolling_description),
+            )
+            var defaultHomeAppLabel by remember { mutableStateOf(resolveDefaultHomeAppLabel(context)) }
+            LifecycleResumeEffect(Unit) {
+                defaultHomeAppLabel = resolveDefaultHomeAppLabel(context)
+                onPauseOrDispose { }
+            }
+            ClickablePreference(
+                label = stringResource(id = R.string.change_default_home_app_label),
+                subtitle = defaultHomeAppLabel?.let {
+                    stringResource(id = R.string.change_default_home_app_current, it)
+                },
+                onClick = { openDefaultHomeAppSettings(context) },
             )
         }
         PreferenceGroup(heading = stringResource(id = R.string.home_screen_actions)) {
@@ -271,6 +287,15 @@ fun HomeScreenPreferences(
         }
     }
 }
+
+/**
+ * Resolves the display label of the app currently set as the default home app, for the
+ * "change default home app" row's summary. Returns null (no summary shown) if resolution
+ * fails for any reason.
+ */
+private fun resolveDefaultHomeAppLabel(context: Context): String? = runCatching {
+    context.getDefaultResolveInfo()?.loadLabel(context.packageManager)?.toString()
+}.getOrNull()?.takeIf { it.isNotBlank() }
 
 private fun clearAllViewsFromHomeScreen(context: Context, type: Int) {
     val launcherModel = LauncherAppState.getInstance(context).model
