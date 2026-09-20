@@ -4,13 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
-import app.lawnchair.search.adapter.CONTACT
-import app.lawnchair.search.adapter.FILES
-import app.lawnchair.search.adapter.MARKET_STORE
-import app.lawnchair.search.adapter.START_PAGE
 import app.lawnchair.search.adapter.SearchTargetCompat
-import app.lawnchair.search.adapter.WEB_SUGGESTION
-import com.android.app.search.LayoutType
 
 sealed interface SearchResultView {
 
@@ -39,12 +33,13 @@ sealed interface SearchResultView {
         return (flags and flag) != 0
     }
 
-    fun shouldHandleClick(targetCompat: SearchTargetCompat): Boolean {
-        val packageName = targetCompat.packageName
-        return (packageName in listOf(START_PAGE, MARKET_STORE, WEB_SUGGESTION, CONTACT, FILES)) &&
-            targetCompat.layoutType != LayoutType.SMALL_ICON_HORIZONTAL_TEXT &&
-            targetCompat.resultType != SearchTargetCompat.RESULT_TYPE_SHORTCUT
-    }
+    /**
+     * Open Launcher only renders app and app-shortcut results, which are launched by
+     * [SearchResultIcon] itself, so no result type needs the generic intent click handling that
+     * the removed web/contact/file results used.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun shouldHandleClick(targetCompat: SearchTargetCompat): Boolean = false
 
     fun handleSearchTargetClick(context: Context, searchTargetIntent: Intent) {
         searchTargetIntent.resolveActivity(context.packageManager)?.let {

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     This file is part of Open Launcher, a fork of Lawnchair Launcher.
+
+     This program is free software: you can redistribute it and/or modify
+     it under the terms of the GNU General Public License as published by
+     the Free Software Foundation, either version 3 of the License, or
+     (at your option) any later version.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+
+    <!-- App drawer automatic category folders -->
+    <string name="drawer_category_communication">Communication</string>
+    <string name="drawer_category_social">Social</string>
+    <string name="drawer_category_media">Media</string>
+    <string name="drawer_category_photography">Photos</string>
+    <string name="drawer_category_games">Games</string>
+    <string name="drawer_category_productivity">Productivity</string>
+    <string name="drawer_category_tools">Tools</string>
+    <string name="drawer_category_shopping">Shopping</string>
+    <string name="drawer_category_finance">Finance</string>
+    <string name="drawer_category_travel">Maps &amp; travel</string>
+    <string name="drawer_category_lifestyle">Lifestyle</string>
+    <string name="drawer_category_google">Google</string>
+    <string name="drawer_category_system">System</string>
+    <string name="drawer_category_other">Other</string>
+
+    <!-- App drawer settings -->
+    <string name="pref_drawer_categories_label">Show category folders</string>
+    <string name="pref_drawer_categories_description">Group apps into folders above the A–Z list. Every app still appears in the A–Z list.</string>
+
+</resources>

@@ -5,64 +5,57 @@ import app.lawnchair.preferences2.PreferenceManager2
 import app.lawnchair.preferences2.firstCached
 import app.lawnchair.search.algorithms.engine.SearchResult
 import app.lawnchair.search.algorithms.filterHiddenApps
-import com.android.launcher3.model.AllAppsList
 import com.android.launcher3.model.data.AppInfo
-import com.android.launcher3.search.StringMatcherUtility
 import java.text.Normalizer
 import java.util.Locale
 
+/**
+ * Ranks installed apps against a query.
+ *
+ * Ranking always goes through [AppMatcher], which is tolerant of typos and of partial or
+ * out-of-order words; the old exact `StringMatcherUtility` path has been removed so behaviour no
+ * longer depends on a "fuzzy search" preference.
+ */
 object AppSearchProvider {
 
     private val DIACRITICS_REMOVE_PATTERN = "\\p{M}+".toRegex()
 
-    fun search(context: Context, query: String, allApps: AllAppsList): List<SearchResult.App> {
+    fun search(context: Context, query: String, apps: List<AppInfo>): List<SearchResult.App> {
+        if (query.isBlank()) return emptyList()
+
         val prefs = PreferenceManager2.getInstance(context)
         val hiddenApps = prefs.hiddenApps.firstCached()
         val hiddenAppsInSearch = prefs.hiddenAppsInSearch.firstCached()
         val maxAppResults = prefs.maxAppSearchResultCount.firstCached()
-        val enableFuzzySearch = prefs.enableFuzzySearch.firstCached()
 
         val queryNormalized = stripDiacritics(query).lowercase(Locale.getDefault())
 
-        val appResults = if (enableFuzzySearch) {
-            fuzzySearch(allApps.data, queryNormalized, maxAppResults, hiddenApps, hiddenAppsInSearch)
-        } else {
-            normalSearch(allApps.data, queryNormalized, maxAppResults, hiddenApps, hiddenAppsInSearch)
+        return rank(apps, queryNormalized, maxAppResults, hiddenApps, hiddenAppsInSearch)
+            .map { SearchResult.App(data = it) }
+    }
+
+    internal fun rank(
+        apps: List<AppInfo>,
+        query: String,
+        maxResultsCount: Int,
+        hiddenApps: Set<String>,
+        hiddenAppsInSearch: String,
+    ): List<AppInfo> = apps.asSequence()
+        .filterHiddenApps(query, hiddenApps, hiddenAppsInSearch)
+        .mapNotNull { app ->
+            val matchResult = AppMatcher.match(stripDiacritics(app.title.toString()), query)
+            if (matchResult.type == MatchType.NO_MATCH) null else app to matchResult
         }
-
-        return appResults.map { SearchResult.App(data = it) }
-    }
-
-    private fun normalSearch(apps: List<AppInfo>, query: String, maxResultsCount: Int, hiddenApps: Set<String>, hiddenAppsInSearch: String): List<AppInfo> {
-        // Do an intersection of the words in the query and each title, and filter out all the
-        // apps that don't match all of the words in the query.
-        val matcher = StringMatcherUtility.StringMatcher.getInstance()
-        return apps.asSequence()
-            .filter { StringMatcherUtility.matches(query, stripDiacritics(it.title.toString()), matcher) }
-            .filterHiddenApps(query, hiddenApps, hiddenAppsInSearch)
-            .take(maxResultsCount)
-            .toList()
-    }
-
-    private fun fuzzySearch(apps: List<AppInfo>, query: String, maxResultsCount: Int, hiddenApps: Set<String>, hiddenAppsInSearch: String): List<AppInfo> {
-        val filteredApps = apps.asSequence()
-            .filterHiddenApps(query, hiddenApps, hiddenAppsInSearch)
-            .toList()
-
-        return filteredApps
-            .mapNotNull { app ->
-                val matchResult = AppMatcher.match(stripDiacritics(app.title.toString()), query)
-                if (matchResult.type == MatchType.NO_MATCH) null else Pair(app, matchResult)
-            }
-            .sortedWith(
-                compareBy(
-                    { it.second.type.priority },
-                    { -it.second.score },
-                ),
-            )
-            .map { it.first }
-            .take(maxResultsCount)
-    }
+        .sortedWith(
+            compareBy(
+                { it.second.type.priority },
+                { -it.second.score },
+                { it.first.title?.toString()?.lowercase(Locale.getDefault()).orEmpty() },
+            ),
+        )
+        .map { it.first }
+        .take(maxResultsCount)
+        .toList()
 
     private fun stripDiacritics(input: String): String {
         return Normalizer.normalize(input, Normalizer.Form.NFKD)

@@ -33,14 +33,16 @@ import java.util.Locale
  */
 class Flowerpot(private val context: Context, val name: String, private val loader: Flowerpot.() -> Unit) {
 
-    val displayName: String by lazy {
-        val id = context.resources.getIdentifier("category_${name.lowercase(Locale.getDefault())}", "string", context.packageName)
-        if (id != 0) {
-            context.getString(id)
-        } else {
-            beautifyName(name)
-        }
-    }
+    /**
+     * Debug/fallback name for a pot.
+     *
+     * The pots themselves are no longer user visible: the drawer collapses them into the buckets
+     * of `app.lawnchair.allapps.DrawerCategoryBuckets`, and those buckets carry the localised
+     * `drawer_category_*` string resources. The old `category_<pot>` resource lookup never
+     * resolved (no such strings exist in the tree) and only cost a `getIdentifier` call, so it
+     * has been dropped.
+     */
+    val displayName: String by lazy { beautifyName(name) }
     private var loaded = false
     val rules: MutableSet<Rules> = mutableSetOf()
     val size get() = rules.size

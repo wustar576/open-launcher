@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     This file is part of Open Launcher, a fork of Lawnchair Launcher.
+
+     This program is free software: you can redistribute it and/or modify
+     it under the terms of the GNU General Public License as published by
+     the Free Software Foundation, either version 3 of the License, or
+     (at your option) any later version.
+-->
+<resources>
+
+    <!-- 應用程式抽屜的自動分類資料夾 -->
+    <string name="drawer_category_communication">通訊</string>
+    <string name="drawer_category_social">社群</string>
+    <string name="drawer_category_media">影音娛樂</string>
+    <string name="drawer_category_photography">相片</string>
+    <string name="drawer_category_games">遊戲</string>
+    <string name="drawer_category_productivity">生產力</string>
+    <string name="drawer_category_tools">工具</string>
+    <string name="drawer_category_shopping">購物</string>
+    <string name="drawer_category_finance">金融</string>
+    <string name="drawer_category_travel">地圖與旅遊</string>
+    <string name="drawer_category_lifestyle">生活</string>
+    <string name="drawer_category_google">Google</string>
+    <string name="drawer_category_system">系統</string>
+    <string name="drawer_category_other">其他</string>
+
+    <!-- 應用程式抽屜設定 -->
+    <string name="pref_drawer_categories_label">顯示分類資料夾</string>
+    <string name="pref_drawer_categories_description">在 A–Z 清單上方把應用程式分組成資料夾。所有應用程式仍會出現在 A–Z 清單中。</string>
+
+</resources>

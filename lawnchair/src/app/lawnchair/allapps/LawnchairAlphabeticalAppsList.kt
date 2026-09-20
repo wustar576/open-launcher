@@ -1,6 +1,7 @@
 package app.lawnchair.allapps
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -11,7 +12,6 @@ import app.lawnchair.data.folder.model.FolderViewModel
 import app.lawnchair.launcher
 import app.lawnchair.preferences.PreferenceManager
 import app.lawnchair.preferences2.PreferenceManager2
-import app.lawnchair.util.categorizeAppsWithSystemAndGoogle
 import app.lawnchair.util.observeOnce
 import com.android.launcher3.InvariantDeviceProfile.OnIDPChangeListener
 import com.android.launcher3.allapps.AllAppsStore
@@ -48,6 +48,16 @@ class LawnchairAlphabeticalAppsList<T>(
     private val folderList = mutableListOf<FolderEntry>()
     private val filteredList = mutableListOf<AppInfo>()
 
+    private val categoryCache = DrawerCategoryCache.getInstance(context)
+    private var showCategories = DrawerCategoriesPreference.get(context)
+
+    private val categoriesPrefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == DrawerCategoriesPreference.KEY) {
+            showCategories = DrawerCategoriesPreference.get(context)
+            onAppsUpdated()
+        }
+    }
+
     init {
         context.launcher.deviceProfile.inv.addOnChangeListener(this)
         (context as? LifecycleOwner)?.lifecycle?.addObserver(this)
@@ -59,11 +69,13 @@ class LawnchairAlphabeticalAppsList<T>(
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to initialize hidden apps", t)
         }
+        DrawerCategoriesPreference.addListener(context, categoriesPrefListener)
         observeFolders()
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
         context.launcher.deviceProfile.inv.removeOnChangeListener(this)
+        DrawerCategoriesPreference.removeListener(context, categoriesPrefListener)
     }
 
     private fun observeFolders() {
@@ -85,56 +97,83 @@ class LawnchairAlphabeticalAppsList<T>(
         onAppsUpdated()
     }
 
+    /**
+     * Builds the drawer as "folders on top, full A-Z list below".
+     *
+     * * When the user made their own drawer folders those are shown and, if
+     *   `pref_hideFolderApps` is on, their members are taken out of the A-Z list — unchanged
+     *   behaviour.
+     * * Otherwise, and when "show category folders" is on, automatically derived category
+     *   folders are shown instead. These never remove anything from the A-Z list, so every app
+     *   stays reachable alphabetically.
+     */
     override fun addAppsWithSections(appList: List<AppInfo?>?, startPosition: Int): Int {
         if (appList.isNullOrEmpty()) return startPosition
-        val drawerListDefault = prefs.drawerList.get()
         filteredList.clear()
         var position = startPosition
 
         // Show app drawer folders only on main profile, to prevent state complexity
         if (isWorkOrPrivateSpace(appList)) return super.addAppsWithSections(appList, position)
 
-        if (!drawerListDefault) {
-            val validApps = appList.mapNotNull { it }
-            val finalCategorizedApps = categorizeAppsWithSystemAndGoogle(validApps, context)
+        val hideFolderApps = prefs.folderApps.get()
+        var hasManualFolders = false
 
-            finalCategorizedApps.forEach { (category, apps) ->
-                if (apps.size == 1) {
-                    mAdapterItems.add(AdapterItem.asApp(apps.first()))
-                } else {
-                    val folderInfo = FolderInfo().apply {
-                        title = category
-                        apps.forEach { add(it) }
-                    }
-                    mAdapterItems.add(AdapterItem.asFolder(folderInfo))
+        folderList.forEach { folderEntry ->
+            val resolvedApps = folderEntry.itemComponentKeys.mapNotNull { keyString ->
+                val componentKey = ComponentKey.fromString(keyString) ?: return@mapNotNull null
+                appsStore.getApp(componentKey) as? AppInfo
+            }
+
+            if (resolvedApps.size > 1) {
+                val folderInfo = FolderInfo().apply {
+                    id = folderEntry.id
+                    title = folderEntry.title
+                    resolvedApps.forEach { add(it) }
                 }
+                mAdapterItems.add(AdapterItem.asFolder(folderInfo))
                 position++
-            }
-        } else {
-            folderList.forEach { folderEntry ->
-                val resolvedApps = folderEntry.itemComponentKeys.mapNotNull { keyString ->
-                    val componentKey = ComponentKey.fromString(keyString) ?: return@mapNotNull null
-                    appsStore.getApp(componentKey) as? AppInfo
-                }
+                hasManualFolders = true
 
-                if (resolvedApps.size > 1) {
-                    val folderInfo = FolderInfo().apply {
-                        id = folderEntry.id
-                        title = folderEntry.title
-                        resolvedApps.forEach { add(it) }
-                    }
-                    mAdapterItems.add(AdapterItem.asFolder(folderInfo))
-                    position++
-
-                    if (prefs.folderApps.get()) {
-                        filteredList.addAll(resolvedApps)
-                    }
+                if (hideFolderApps) {
+                    filteredList.addAll(resolvedApps)
                 }
             }
-            val remainingApps = appList.filterNot { app -> filteredList.contains(app) && prefs.folderApps.get() }
-            position = super.addAppsWithSections(remainingApps, position)
         }
 
+        if (!hasManualFolders && showCategories) {
+            position = addCategoryFolders(appList.filterNotNull(), position)
+        }
+
+        val remainingApps = appList.filterNot { app -> filteredList.contains(app) && hideFolderApps }
+        return super.addAppsWithSections(remainingApps, position)
+    }
+
+    /**
+     * Adds the automatically derived category folders. Never blocks: on a cache miss nothing is
+     * added and a background recomputation is kicked off that rebuilds the adapter once done.
+     */
+    private fun addCategoryFolders(apps: List<AppInfo>, startPosition: Int): Int {
+        var position = startPosition
+        val categories = categoryCache.peek(apps)
+        if (categories == null) {
+            categoryCache.requestCompute(apps) { updateAdapterItems() }
+            return position
+        }
+
+        categories.forEach { category ->
+            val resolvedApps = category.componentKeys.mapNotNull { keyString ->
+                val componentKey = ComponentKey.fromString(keyString) ?: return@mapNotNull null
+                appsStore.getApp(componentKey) as? AppInfo
+            }
+            if (resolvedApps.size < DrawerCategoryBuckets.MIN_BUCKET_SIZE) return@forEach
+
+            val folderInfo = FolderInfo().apply {
+                title = context.getString(category.titleRes)
+                resolvedApps.forEach { add(it) }
+            }
+            mAdapterItems.add(AdapterItem.asFolder(folderInfo))
+            position++
+        }
         return position
     }
 
