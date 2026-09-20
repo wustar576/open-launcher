@@ -1,11 +1,12 @@
 package app.lawnchair.font
 
 /**
- * Resolves the AOSP variable-* names used in the launcher to the matching GSF variation axes.
- *
- * @see [app.lawnchair.ui.theme.GoogleSansFlex]
+ * Resolves the AOSP `variable-*` font family names used in the launcher to Material 3 Expressive
+ * variation axes. Open Launcher ships no variable font, so
+ * [app.lawnchair.font.FontCache.variableSystemFont] approximates the result with the system
+ * typeface; see there.
  */
-object GoogleSansFlexVariableFont {
+object VariableFontAxes {
 
     private const val PREFIX = "variable-"
     private const val EMPHASIZED_SUFFIX = "-emphasized"

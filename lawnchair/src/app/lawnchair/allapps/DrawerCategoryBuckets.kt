@@ -58,13 +58,16 @@ object DrawerCategoryBuckets {
      * The order in which apps are *claimed*. An app that matches several pots ends up in the
      * first bucket of this list that claims it, so the order is part of the contract.
      *
-     * Google / System come first because that mirrors the behaviour users already had in the
-     * old "Caddy" drawer layout: a Google or preinstalled system app is grouped by its origin
-     * rather than by its Play Store category.
+     * The purpose buckets claim first: on a typical phone almost every preinstalled app is
+     * either a `com.google.*` package or flagged as a system app, so letting [GOOGLE] / [SYSTEM]
+     * claim first would sweep Gmail, Chrome, Maps, Photos, the dialer and the camera into two
+     * giant "origin" folders and leave the purpose folders empty. [GOOGLE] and [SYSTEM] are
+     * therefore last-resort buckets that only pick up what no flowerpot rule set matched.
+     *
+     * [GOOGLE] is placed before [SYSTEM] so that a Google app that is also preinstalled lands in
+     * the more specific of the two.
      */
     val claimOrder: List<String> = listOf(
-        GOOGLE,
-        SYSTEM,
         COMMUNICATION,
         SOCIAL,
         MEDIA,
@@ -76,7 +79,15 @@ object DrawerCategoryBuckets {
         FINANCE,
         TRAVEL,
         LIFESTYLE,
+        GOOGLE,
+        SYSTEM,
     )
+
+    /**
+     * Buckets that are not backed by flowerpot rule sets but by a property of the package itself
+     * ([POT_GOOGLE] / [POT_SYSTEM]). They deliberately claim last; see [claimOrder].
+     */
+    val originBuckets: List<String> = listOf(GOOGLE, SYSTEM)
 
     /**
      * The order in which the folders are rendered above the A-Z list.

@@ -14,7 +14,8 @@ import com.android.launcher3.util.ApplicationInfoWrapper
  * ([DrawerCategoryBuckets.POT_GOOGLE] / [DrawerCategoryBuckets.POT_SYSTEM]) are collapsed into
  * the handful of buckets described by [DrawerCategoryBuckets]. An app that matches several pots
  * is claimed by the first bucket in [DrawerCategoryBuckets.claimOrder] that wants it, which makes
- * the result deterministic.
+ * the result deterministic. `GOOGLE` / `SYSTEM` sit at the end of that order, so an app is only
+ * grouped by its origin when no purpose bucket wanted it.
  *
  * This is an expensive call (it queries the PackageManager through the flowerpot rules) and must
  * therefore never run on the main thread — see `DrawerCategoryCache`.
@@ -46,29 +47,32 @@ fun categorizeAppsIntoBuckets(
         }
     }
 
-    // Google and system apps are claimed first, mirroring the previous drawer behaviour.
-    claim(
-        DrawerCategoryBuckets.GOOGLE,
-        unclaimed.values.filter { it.targetPackage?.startsWith("com.google.") == true },
-    )
-    claim(
-        DrawerCategoryBuckets.SYSTEM,
-        unclaimed.values.filter { app ->
-            val intent = app.intent ?: return@filter false
-            runCatching { ApplicationInfoWrapper(context, intent).isSystem() }.getOrDefault(false)
-        },
-    )
-
-    // Then the flowerpot rule sets, bucket by bucket, in a fixed order.
+    // Buckets claim in a fixed order. The purpose buckets go first; GOOGLE / SYSTEM are
+    // last-resort buckets that only pick up what no flowerpot rule set matched.
     DrawerCategoryBuckets.claimOrder.forEach { bucket ->
-        if (bucket == DrawerCategoryBuckets.GOOGLE || bucket == DrawerCategoryBuckets.SYSTEM) return@forEach
-        DrawerCategoryBuckets.potsFor(bucket).forEach { potName ->
-            if (unclaimed.isEmpty()) return@forEach
-            val pot = potsManager.getPot(potName) ?: return@forEach
-            val matched = runCatching {
-                pot.categorizeApps(unclaimed.values.toList()).values.flatten()
-            }.getOrDefault(emptyList())
-            claim(bucket, matched)
+        if (unclaimed.isEmpty()) return@forEach
+        when (bucket) {
+            DrawerCategoryBuckets.GOOGLE -> claim(
+                bucket,
+                unclaimed.values.filter { it.targetPackage?.startsWith("com.google.") == true },
+            )
+
+            DrawerCategoryBuckets.SYSTEM -> claim(
+                bucket,
+                unclaimed.values.filter { app ->
+                    val intent = app.intent ?: return@filter false
+                    runCatching { ApplicationInfoWrapper(context, intent).isSystem() }.getOrDefault(false)
+                },
+            )
+
+            else -> DrawerCategoryBuckets.potsFor(bucket).forEach { potName ->
+                if (unclaimed.isEmpty()) return@forEach
+                val pot = potsManager.getPot(potName) ?: return@forEach
+                val matched = runCatching {
+                    pot.categorizeApps(unclaimed.values.toList()).values.flatten()
+                }.getOrDefault(emptyList())
+                claim(bucket, matched)
+            }
         }
     }
 

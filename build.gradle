@@ -151,8 +151,8 @@ android {
     namespace "com.android.launcher3"
     defaultConfig {
         /*
-         * Lawnchair Launcher 16.0 Beta 1.0
-         * see https://docs.lawnchair.app/developers/standards/development-workflow#versioning-scheme
+         * Open Launcher 16.0 Beta 1.0 — the version scheme is inherited from the upstream
+         * Lawnchair 16 branch this fork is derived from.
          */
         versionCode 16_00_02_01_00
         versionName "${versionDisplayName}"
@@ -188,7 +188,6 @@ android {
         "google/**",
         "kotlin/**",
         "kotlinx/**",
-        "okhttp3/**",
         "META-INF/services/**",
         "META-INF/com/**",
         "META-INF/licenses/**",
@@ -311,6 +310,13 @@ android {
 
         lawnWithQuickstepGithub {
             manifest.srcFile "quickstep/AndroidManifest-launcher.xml"
+        }
+
+        // Plain-JVM unit tests for the Open Launcher additions (no Android framework needed).
+        // Run with `./gradlew testLawnWithQuickstepGithubDebugUnitTest`.
+        test {
+            java.srcDirs = ['lawnchair/tests/unit']
+            kotlin.directories.addAll('lawnchair/tests/unit')
         }
 
         withQuickstep {
@@ -438,13 +444,10 @@ dependencies {
     implementation libs.google.material
     implementation libs.material.motion.compose
     implementation libs.kdrag0n.colorkt
-    implementation libs.coil.compose
     implementation libs.xdrop.fuzzywuzzy
 
     implementation libs.bundles.opto
     implementation libs.androidx.datastore.preferences
-
-    implementation libs.bundles.retrofit
 
     implementation libs.bundles.room
     ksp libs.room.compiler
@@ -475,6 +478,8 @@ dependencies {
 
     debugImplementation libs.leakcanary.android
     debugImplementation libs.leakcanary.androidstudio
+
+    testImplementation libs.junit
 }
 
 ksp {

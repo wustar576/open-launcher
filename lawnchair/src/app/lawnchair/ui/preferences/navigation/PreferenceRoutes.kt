@@ -1,8 +1,5 @@
 package app.lawnchair.ui.preferences.navigation
 
-import app.lawnchair.ui.preferences.components.search.SearchProviderId
-import app.lawnchair.ui.preferences.destinations.SearchRoute
-import app.lawnchair.ui.preferences.destinations.ShapeRoute
 import kotlinx.serialization.Serializable
 
 private const val URI = "openlauncher://settings"
@@ -40,11 +37,6 @@ data object Dummy : PreferenceRootRoute
 
 // Top-level destinations
 @Serializable
-data object General : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/general"
-}
-
-@Serializable
 data object HomeScreen : PreferenceRootRoute, PreferenceDeepLink {
     override val deepLink = "$URI/home-screen"
 }
@@ -54,22 +46,9 @@ data object AppDrawer : PreferenceRootRoute, PreferenceDeepLink {
     override val deepLink = "$URI/app-drawer"
 }
 
-// technically the search screen, selectedId selects the default tab inside this
-@Serializable
-data class Search(val selectedId: SearchRoute = SearchRoute.DOCK_SEARCH) :
-    PreferenceRootRoute,
-    PreferenceDeepLink {
-    override val deepLink = "$URI/search"
-}
-
 // Note: the standalone Gestures settings page/route was removed as part of settings-UI
 // pruning (spec §7). Only the "pick an app" sub-route (GesturesPickApp, below) remains,
 // since it is used by the double-tap gesture control embedded in Home Screen preferences.
-
-@Serializable
-data object Smartspace : PreferenceRootRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/smartspace"
-}
 
 @Serializable
 data object About : PreferenceRootRoute, PreferenceDeepLink {
@@ -84,25 +63,6 @@ data object Predictions : PreferenceRoute, PreferenceDeepLink {
 @Serializable
 data object DismissedPredictionApps : PreferenceRoute
 
-// General section routes
-@Serializable
-data class GeneralFontSelection(val prefKey: String) : PreferenceRoute
-
-@Serializable
-data object GeneralIconPack : PreferenceRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/general-iconpack"
-}
-
-@Serializable
-data class GeneralIconShape(val selectedId: ShapeRoute = ShapeRoute.APP_SHAPE) : PreferenceRoute
-
-@Serializable
-data class GeneralCustomIconShapeCreator(val selectedId: ShapeRoute = ShapeRoute.APP_SHAPE) :
-    PreferenceRoute,
-    PreferenceDeepLink {
-    override val deepLink = "$URI/general-icon-shape-creator"
-}
-
 // Home Screen section routes
 @Serializable
 data object HomeScreenGrid : PreferenceRoute, PreferenceDeepLink {
@@ -112,12 +72,6 @@ data object HomeScreenGrid : PreferenceRoute, PreferenceDeepLink {
 @Serializable
 data object HomeScreenPopupEditor : PreferenceRoute, PreferenceDeepLink {
     override val deepLink = "$URI/home-screen-popup-editor"
-}
-
-// Dock section routes
-@Serializable
-data object DockSearchProvider : PreferenceRoute, PreferenceDeepLink {
-    override val deepLink = "$URI/dock-search-provider"
 }
 
 // App Drawer section routes
@@ -133,18 +87,6 @@ data object AppDrawerFolder : PreferenceRoute, PreferenceDeepLink {
 
 @Serializable
 data class AppDrawerAppListToFolder(val id: Int) : PreferenceRoute
-
-// Search section routes
-@Serializable
-data class SearchProviderPreference(val id: SearchProviderId) :
-    PreferenceRoute,
-    PreferenceDeepLink {
-    override val deepLink = "$URI/search-provider"
-}
-
-// Smartspace section routes
-@Serializable
-data object SmartspaceWidget : PreferenceRoute
 
 // Gestures section routes
 @Serializable

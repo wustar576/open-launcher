@@ -29,14 +29,6 @@ class LawnchairSearchAdapterProvider(
         append(SEARCH_RESULT_SMALL_ICON_ROW, R.layout.search_result_small_icon_row)
         append(SEARCH_RESULT_DIVIDER, R.layout.search_result_divider)
         append(SEARCH_TEXT_HEADER, R.layout.search_result_text_header)
-        append(SEARCH_PEOPLE_TILE, R.layout.search_result_icon_right_left)
-        append(SEARCH_RESULT_FILE_TILE, R.layout.search_result_icon_right_left)
-        append(SEARCH_RESULT_SUGGESTION_TILE, R.layout.search_result_small_icon_row)
-        append(SEARCH_RESULT_SETTINGS_TILE, R.layout.search_result_small_icon_row)
-        append(SEARCH_RESULT_RECENT_TILE, R.layout.search_result_small_icon_row)
-        append(SEARCH_RESULT_CALCULATOR, R.layout.search_result_tall_icon_row_calculator)
-        append(SEARCH_RESULT_EMPTY_STATE, R.layout.search_result_empty_state)
-        append(SEARCH_RESULT_SEARCH_SETTINGS, R.layout.search_result_search_settings)
     }
     private var quickLaunchItem: SearchResultView? = null
         set(value) {
@@ -109,29 +101,13 @@ class LawnchairSearchAdapterProvider(
         private const val SEARCH_RESULT_SMALL_ICON_ROW = 1 shl 12
         private const val SEARCH_RESULT_DIVIDER = 1 shl 13
         private const val SEARCH_TEXT_HEADER = 1 shl 14
-        private const val SEARCH_PEOPLE_TILE = 1 shl 15
-        private const val SEARCH_RESULT_FILE_TILE = 1 shl 16
-        private const val SEARCH_RESULT_SUGGESTION_TILE = 1 shl 17
-        private const val SEARCH_RESULT_SETTINGS_TILE = 1 shl 18
-        private const val SEARCH_RESULT_RECENT_TILE = 1 shl 19
-        private const val SEARCH_RESULT_CALCULATOR = 1 shl 20
-        private const val SEARCH_RESULT_EMPTY_STATE = 1 shl 21
-        private const val SEARCH_RESULT_SEARCH_SETTINGS = 1 shl 22
 
         val viewTypeMap = mapOf(
             LayoutType.ICON_SINGLE_VERTICAL_TEXT to SEARCH_RESULT_ICON,
             LayoutType.ICON_HORIZONTAL_TEXT to SEARCH_RESULT_ICON_ROW,
             LayoutType.SMALL_ICON_HORIZONTAL_TEXT to SEARCH_RESULT_SMALL_ICON_ROW,
-            LayoutType.HORIZONTAL_MEDIUM_TEXT to SEARCH_RESULT_SUGGESTION_TILE,
             LayoutType.EMPTY_DIVIDER to SEARCH_RESULT_DIVIDER,
             LayoutType.TEXT_HEADER to SEARCH_TEXT_HEADER,
-            LayoutType.PEOPLE_TILE to SEARCH_PEOPLE_TILE,
-            LayoutType.THUMBNAIL to SEARCH_RESULT_FILE_TILE,
-            LayoutType.ICON_SLICE to SEARCH_RESULT_SETTINGS_TILE,
-            LayoutType.WIDGET_LIVE to SEARCH_RESULT_RECENT_TILE,
-            LayoutType.CALCULATOR to SEARCH_RESULT_CALCULATOR,
-            LayoutType.EMPTY_STATE to SEARCH_RESULT_EMPTY_STATE,
-            LayoutType.SEARCH_SETTINGS to SEARCH_RESULT_SEARCH_SETTINGS,
         )
     }
 }

@@ -28,7 +28,7 @@ import app.lawnchair.qsb.providers.Google
 import app.lawnchair.qsb.providers.PixelSearch
 import app.lawnchair.qsb.providers.QsbSearchProvider
 import app.lawnchair.ui.preferences.PreferenceActivity
-import app.lawnchair.ui.preferences.navigation.Search
+import app.lawnchair.ui.preferences.navigation.HomeScreen
 import app.lawnchair.ui.theme.LawnchairTheme
 import app.lawnchair.util.ProvideLifecycleState
 import app.lawnchair.util.repeatOnAttached
@@ -180,7 +180,7 @@ class LawnQsbLayout(context: Context, attrs: AttributeSet?) : FrameLayout(contex
         R.drawable.ic_setting,
         StatsLogManager.LauncherEvent.IGNORE,
     ) {
-        context.startActivity(PreferenceActivity.createIntent(context, Search()))
+        context.startActivity(PreferenceActivity.createIntent(context, HomeScreen))
         true
     }
 

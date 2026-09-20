@@ -81,10 +81,10 @@ class FontManager @Inject constructor(
                 }
             }
 
-            val gsfAxes = GoogleSansFlexVariableFont.axesFor(fontFamily)
-            if (gsfAxes != null) {
+            val variableAxes = VariableFontAxes.axesFor(fontFamily)
+            if (variableAxes != null) {
                 val font = variableFonts.getOrPut(fontFamily!!) {
-                    fontCache.googleSansFlexVariable(gsfAxes)
+                    fontCache.variableSystemFont(variableAxes)
                 }
                 applyFont(textView, font)
                 return

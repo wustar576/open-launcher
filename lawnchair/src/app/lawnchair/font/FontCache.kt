@@ -93,7 +93,7 @@ class FontCache @Inject constructor(
      * variation [axes] are approximated using only the system's "regular"/"medium"/"bold"
      * typeface faces.
      */
-    fun googleSansFlexVariable(axes: Map<String, Float>): TypefaceFont {
+    fun variableSystemFont(axes: Map<String, Float>): TypefaceFont {
         val weight = axes[FontAxes.WEIGHT]?.toInt() ?: FontWeight.Normal.weight
         return when {
             weight >= FontWeight.Bold.weight -> SystemFont("sans-serif", Typeface.BOLD)

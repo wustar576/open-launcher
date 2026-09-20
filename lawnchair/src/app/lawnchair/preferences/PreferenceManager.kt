@@ -141,23 +141,6 @@ class PreferenceManager @Inject constructor(
     val fontBody = FontPref("pref_fontBody", fontCache.uiText, recreate)
     val fontBodyMedium = FontPref("pref_fontBodyMedium", fontCache.uiTextMedium, recreate)
 
-    // TODO REMOVE
-    val deviceSearch = BoolPref("device_search", false, recreate)
-    val searchResultShortcuts = BoolPref("pref_searchResultShortcuts", false)
-    val searchResultPeople = BoolPref("pref_searchResultPeople", false, recreate)
-    val searchResultPixelTips = BoolPref("pref_searchResultPixelTips", false)
-    val searchResultSettings = BoolPref("pref_searchResultSettings", false)
-    val searchResultCalculator = BoolPref("pref_searchResultCalculator", false)
-
-    val searchResultApps = BoolPref("pref_searchResultApps", true, recreate)
-    val searchResultFilesToggle = BoolPref("pref_searchResultFiles", false, recreate)
-    val searchResultAllFiles = BoolPref("pref_searchResultAllFiles", false, recreate)
-    val searchResultAudio = BoolPref("pref_searchResultAudio", false, recreate)
-    val searchResultVisualMedia = BoolPref("pref_searchResultVisualMedia", false, recreate)
-    val searchResultStartPageSuggestion = BoolPref("pref_searchResultStartPageSuggestion", false, recreate)
-    val searchResultSettingsEntry = BoolPref("pref_searchResultSettingsEntry", false, recreate)
-    val searchResulRecentSuggestion = BoolPref("pref_searchResultRecentSuggestion", false, recreate)
-
     val themedIcons = BoolPref("themed_icons", false, reloadIcons)
     val drawerThemedIcons = BoolPref("drawer_themed_icons", false, reloadIcons)
     val tintIconPackBackgrounds = BoolPref("tint_icon_pack_backgrounds", false, reloadIcons)
@@ -179,6 +162,7 @@ class PreferenceManager @Inject constructor(
 
     val drawerList = BoolPref("pref_drawerList", true, recreate)
     val folderApps = BoolPref("pref_hideFolderApps", true, reloadGrid)
+    val drawerCategories = BoolPref("pref_drawerCategories", true, recreate)
 
     val recentsActionScreenshot = BoolPref("pref_recentsActionScreenshot", !isOnePlusStock)
     val recentsActionShare = BoolPref("pref_recentsActionShare", isOnePlusStock)

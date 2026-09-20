@@ -45,7 +45,10 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ColumnScope.WithWallpaper(
     modifier: Modifier = Modifier,
-    displayWallpaperButton: Boolean = true,
+    // Open Launcher declares no storage permissions, so reading the *static* wallpaper bitmap can
+    // never be granted and offering the button would be a dead end. A live wallpaper still
+    // renders, because its thumbnail needs no permission.
+    displayWallpaperButton: Boolean = false,
     content: @Composable ColumnScope.(wallpaper: Drawable?) -> Unit,
 ) {
     val context = LocalContext.current

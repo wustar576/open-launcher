@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches:
+      - main
       - '*-dev'
     paths-ignore:
       - '.idea/**'
@@ -13,6 +14,7 @@ on:
       - '**.md'
       - 'LICENSE.txt'
       - 'NOTICE'
+      - 'COPYING'
   pull_request:
     paths-ignore:
       - '.idea/**'
@@ -23,11 +25,15 @@ on:
       - '**.md'
       - 'LICENSE.txt'
       - 'NOTICE'
+      - 'COPYING'
   workflow_dispatch:
   workflow_call:
 
 jobs:
-  build-debug-apk:
+  # The launcher itself. `feed/` is a standalone Gradle project and is deliberately
+  # NOT part of the root `settings.gradle`, so it gets its own job below.
+  build-launcher:
+    name: Launcher debug APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,13 +48,53 @@ jobs:
           cache-encryption-key: Da25KUVSE5jbGds2zXmfXw==
       - name: Build debug APK
         run: ./gradlew assembleLawnWithQuickstepGithubDebug
-      - name: Upload artifact
+      - name: Unit tests
+        run: ./gradlew testLawnWithQuickstepGithubDebugUnitTest
+      - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: assembleLawnWithQuickstepGithubDebug
+          name: open-launcher-debug
           path: build/outputs/apk/**/*.apk
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-launcher-unit-test-report
+          path: build/reports/tests/**
+
+  build-feed:
+    name: Feed companion APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: feed
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'zulu'
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          build-root-directory: feed
+      - name: Build and test
+        run: ./gradlew assembleDebug testDebugUnitTest
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-launcher-feed-debug
+          path: feed/build/outputs/apk/**/*.apk
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-launcher-feed-unit-test-report
+          path: feed/build/reports/tests/**
 
   check-style:
+    name: Spotless
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -64,7 +110,8 @@ jobs:
   # Status check that is required in branch protection rules.
   final-status:
     needs:
-      - build-debug-apk
+      - build-launcher
+      - build-feed
       - check-style
     runs-on: ubuntu-latest
     if: always()

@@ -17,15 +17,11 @@
 package app.lawnchair.ui.preferences.destinations
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import app.lawnchair.allapps.DrawerCategoriesPreference
 import app.lawnchair.preferences.getAdapter
+import app.lawnchair.preferences.preferenceManager
 import app.lawnchair.preferences2.preferenceManager2
 import app.lawnchair.ui.preferences.LocalIsExpandedScreen
 import app.lawnchair.ui.preferences.components.AppDrawerHapticFeedbackPreference
@@ -49,6 +45,7 @@ object AppDrawerRoutes {
 fun AppDrawerPreferences(
     modifier: Modifier = Modifier,
 ) {
+    val prefs = preferenceManager()
     val prefs2 = preferenceManager2()
     val context = LocalContext.current
     val resources = context.resources
@@ -59,15 +56,10 @@ fun AppDrawerPreferences(
         backArrowVisible = !LocalIsExpandedScreen.current,
         modifier = modifier,
     ) {
-        var showCategories by remember { mutableStateOf(DrawerCategoriesPreference.get(context)) }
         val hiddenApps = prefs2.hiddenApps.getAdapter().state.value
         PreferenceGroup(heading = stringResource(id = R.string.general_label)) {
             SwitchPreference(
-                checked = showCategories,
-                onCheckedChange = {
-                    showCategories = it
-                    DrawerCategoriesPreference.set(context, it)
-                },
+                adapter = prefs.drawerCategories.getAdapter(),
                 label = stringResource(id = R.string.pref_drawer_categories_label),
                 description = stringResource(id = R.string.pref_drawer_categories_description),
             )

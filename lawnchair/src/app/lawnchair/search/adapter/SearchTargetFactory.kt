@@ -13,7 +13,6 @@ import com.android.launcher3.R
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.util.ComponentKey
 import java.security.MessageDigest
-import okio.ByteString
 
 /**
  * Builds the search targets the all-apps search adapter renders.
@@ -75,7 +74,8 @@ class SearchTargetFactory(
         // TODO find a way to properly provide tag/provide ids to search target
         private val messageDigest by lazy { MessageDigest.getInstance(HASH_ALGORITHM) }
 
-        private fun generateHashKey(input: String): String = ByteString.of(*messageDigest.digest(input.toByteArray())).hex()
+        private fun generateHashKey(input: String): String = messageDigest.digest(input.toByteArray())
+            .joinToString(separator = "") { "%02x".format(it) }
 
         fun createSearchTarget(
             id: String,

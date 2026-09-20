@@ -1,32 +1,36 @@
-# Contributing to Lawnchair
+# 參與 Open Launcher
 
-Thank you for your interest in contributing to the Lawnchair project. This document provides general reminders and directs you to our official, living documentation hub at [docs.lawnchair.app](https://docs.lawnchair.app).
+歡迎回報問題或送出修改。本專案規模很小，流程也刻意保持簡單。
 
-## General reminders
+- 專案首頁：<https://github.com/wustar576/open-launcher>
+- 問題回報與討論：<https://github.com/wustar576/open-launcher/issues>
 
-Before participating in any area of the project, please keep these core guidelines in mind:
+本專案是 [Lawnchair](https://github.com/LawnchairLauncher/lawnchair) 與 AOSP Launcher3 的獨立衍生版本，**與 Lawnchair 團隊無關**。請勿把本專案的問題回報到 Lawnchair 的 Issue 追蹤器或社群頻道。
 
-* Adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) during all interactions.
-* Always search our [GitHub issue tracker](https://github.com/LawnchairLauncher/lawnchair/issues) to see if a bug has already been reported or a feature requested before opening a new issue.
-* Avoid using the issue tracker for personal support. If you need help, please visit our [community channels](https://docs.lawnchair.app/project-and-community/get-involved/community-channels) on Telegram or Discord.
+## 回報問題前
 
-### Contributing non-code
+- 先搜尋既有 issue，避免重複。
+- 附上裝置型號、Android 版本、APK 版本，以及可重現的操作步驟。
 
-You do not need to write code to make a significant impact on Lawnchair. We welcome and encourage several forms of non-code contributions:
+## 送出修改
 
-* You can help make Lawnchair accessible to a global audience by contributing translations through [Lawnchair on Crowdin](https://lawnchair.crowdin.com/lawnchair).
-* You can help make development sustainable by [donating to the project](https://opencollective.com/lawnchair/).
-* You can help maintain a clean and effective issue tracker by joining our [triaging issues](https://docs.lawnchair.app/community/get-involved/triage-issues).
-* You can help keep our documentation accurate and clear by contributing directly to our [documentation files](https://docs.lawnchair.app/community/get-involved/writing-documentation).
+1. 開一個分支，一個 PR 只做一件事。
+2. 產品範圍請先看 [`docs/specs/open-launcher-spec.md`](docs/specs/open-launcher-spec.md)。本專案只做三件事：桌面、應用程式抽屜、Blink 新聞頁外掛；超出範圍的新功能通常不會被接受。
+3. 建置與檢查（Git Bash，於儲存庫根目錄）：
 
-### Contributing code
+   ```bash
+   JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew spotlessCheck --no-daemon
+   JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew assembleLawnWithQuickstepGithubDebug --no-daemon
+   JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew testLawnWithQuickstepGithubDebugUnitTest --no-daemon
+   ```
 
-Lawnchair is built on a highly complex, AOSP-derived foundation. Because of this, direct code contribution is challenging and may not be suitable for beginners. 
+   新聞頁外掛在 `feed/` 目錄，是獨立的 Gradle 專案，請用它自己的 wrapper 執行 `./gradlew assembleDebug testDebugUnitTest`。
 
-Before setting up your environment or writing any code, please read our [onboarding preface](https://docs.lawnchair.app/developers) to understand the unique challenges of this codebase.
+4. 格式不符時用 `./gradlew spotlessApply` 自動修正。
 
-If you are ready to write code, refer to [our official developer guides](https://docs.lawnchair.app/developers) on our documentation site:
+## 授權與著作權
 
-* [Setup your build environment](https://docs.lawnchair.app/developers/introduction/get-started)
-* [Understand our development workflow](https://docs.lawnchair.app/developers/standards/development-workflow)
-* [Follow code standards](https://docs.lawnchair.app/developer-guide/standards/coding-standards)
+- 本專案整體以 **GPL-3.0-or-later** 發佈，送出的修改視同以相同條款授權。
+- **不要改寫既有檔案的著作權標頭**，也不要刪改 [`LICENSE.txt`](LICENSE.txt)、[`NOTICE`](NOTICE)、[`COPYING`](COPYING)。
+- 不要加入 Lawnchair 或其他專案的名稱、圖示、商標與捐款連結。
+- `feed/` 外掛必須維持 clean-room：只能依據 `docs/specs/open-launcher-spec.md` 第 8 節的協定描述撰寫，不得閱讀或複製 Lawnfeed、`LawnchairLauncher/launcherclient`、AIDLBridge 等未附授權檔的專案原始碼。

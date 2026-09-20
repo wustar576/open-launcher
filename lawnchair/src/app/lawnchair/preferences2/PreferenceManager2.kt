@@ -40,7 +40,6 @@ import app.lawnchair.predictions.PredictionMode
 import app.lawnchair.preferences.PreferenceManager as LawnchairPreferenceManager
 import app.lawnchair.qsb.providers.QsbSearchProvider
 import app.lawnchair.search.algorithms.LawnchairSearchAlgorithm
-import app.lawnchair.search.algorithms.engine.provider.web.WebSearchProvider
 import app.lawnchair.smartspace.model.SmartspaceCalendar
 import app.lawnchair.smartspace.model.SmartspaceMode
 import app.lawnchair.smartspace.model.SmartspaceTimeFormat
@@ -437,12 +436,6 @@ class PreferenceManager2 @Inject constructor(
         onSet = { reloadHelper.recreate() },
     )
 
-    val searchAlgorithm = preference(
-        key = stringPreferencesKey(name = "search_algorithm"),
-        defaultValue = LawnchairSearchAlgorithm.APP_SEARCH,
-        onSet = { reloadHelper.recreate() },
-    )
-
     val showSuggestedAppsInDrawer = preference(
         key = booleanPreferencesKey(name = "show_suggested_apps_at_drawer_top"),
         defaultValue = context.resources.getBoolean(R.bool.config_default_show_suggested_apps_at_drawer_top),
@@ -600,64 +593,9 @@ class PreferenceManager2 @Inject constructor(
         onSet = { reloadHelper.recreate() },
     )
 
-    val webSuggestionProvider = preference(
-        key = stringPreferencesKey(name = "web_suggestion_provider"),
-        defaultValue = WebSearchProvider.fromString(
-            context.resources.getString(R.string.config_default_web_suggestion_provider),
-        ),
-        parse = { WebSearchProvider.fromString(it) },
-        save = { it.toString() },
-        onSet = { reloadHelper.recreate() },
-    )
-
-    val webSuggestionProviderUrl = preference(
-        key = stringPreferencesKey(name = "web_suggestion_provider_url"),
-        defaultValue = "",
-    )
-
-    val webSuggestionProviderSuggestionsUrl = preference(
-        key = stringPreferencesKey(name = "web_suggestions_provider_suggestions_url"),
-        defaultValue = "",
-    )
-
-    val webSuggestionProviderName = preference(
-        key = stringPreferencesKey(name = "web_suggestion_provider_name"),
-        defaultValue = context.resources.getString(R.string.custom),
-    )
-
     val maxAppSearchResultCount = preference(
         key = intPreferencesKey(name = "max_search_result_count"),
         defaultValue = resourceProvider.getInt(R.dimen.config_default_search_max_result_count),
-    )
-
-    val maxWebSuggestionResultCount = preference(
-        key = intPreferencesKey(name = "max_suggestion_result_count"),
-        defaultValue = resourceProvider.getInt(R.dimen.config_default_suggestion_max_result_count),
-    )
-
-    val maxFileResultCount = preference(
-        key = intPreferencesKey(name = "max_files_result_count"),
-        defaultValue = resourceProvider.getInt(R.dimen.config_default_files_max_result_count),
-    )
-
-    val maxPeopleResultCount = preference(
-        key = intPreferencesKey(name = "max_people_result_count"),
-        defaultValue = resourceProvider.getInt(R.dimen.config_default_people_max_result_count),
-    )
-
-    val maxWebSuggestionDelay = preference(
-        key = intPreferencesKey(name = "max_web_suggestion_delay"),
-        defaultValue = resourceProvider.getInt(R.dimen.config_default_max_web_suggestion_delay),
-    )
-
-    val maxSettingsEntryResultCount = preference(
-        key = intPreferencesKey(name = "max_settings_entry_result_count"),
-        defaultValue = resourceProvider.getInt(R.dimen.config_default_settings_entry_max_result_count),
-    )
-
-    val maxRecentResultCount = preference(
-        key = intPreferencesKey(name = "max_recent_result_count"),
-        defaultValue = resourceProvider.getInt(R.dimen.config_default_recent_max_result_count),
     )
 
     val enableSmartspace = preference(

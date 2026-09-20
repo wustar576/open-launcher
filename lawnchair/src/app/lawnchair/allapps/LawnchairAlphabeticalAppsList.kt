@@ -1,7 +1,6 @@
 package app.lawnchair.allapps
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -23,6 +22,7 @@ import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.FolderInfo
 import com.android.launcher3.model.data.ItemInfo
 import com.android.launcher3.util.ComponentKey
+import com.android.launcher3.util.SafeCloseable
 import com.android.launcher3.views.ActivityContext
 import com.patrykmichalik.opto.core.onEach
 import java.util.function.Predicate
@@ -49,14 +49,9 @@ class LawnchairAlphabeticalAppsList<T>(
     private val filteredList = mutableListOf<AppInfo>()
 
     private val categoryCache = DrawerCategoryCache.getInstance(context)
-    private var showCategories = DrawerCategoriesPreference.get(context)
+    private var showCategories = prefs.drawerCategories.get()
 
-    private val categoriesPrefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == DrawerCategoriesPreference.KEY) {
-            showCategories = DrawerCategoriesPreference.get(context)
-            onAppsUpdated()
-        }
-    }
+    private var categoriesPrefSubscription: SafeCloseable? = null
 
     init {
         context.launcher.deviceProfile.inv.addOnChangeListener(this)
@@ -69,13 +64,17 @@ class LawnchairAlphabeticalAppsList<T>(
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to initialize hidden apps", t)
         }
-        DrawerCategoriesPreference.addListener(context, categoriesPrefListener)
+        categoriesPrefSubscription = prefs.drawerCategories.subscribeChanges {
+            showCategories = prefs.drawerCategories.get()
+            onAppsUpdated()
+        }
         observeFolders()
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
         context.launcher.deviceProfile.inv.removeOnChangeListener(this)
-        DrawerCategoriesPreference.removeListener(context, categoriesPrefListener)
+        categoriesPrefSubscription?.close()
+        categoriesPrefSubscription = null
     }
 
     private fun observeFolders() {

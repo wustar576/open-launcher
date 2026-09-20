@@ -128,19 +128,6 @@ sealed class LawnchairSearchAlgorithm(
     }
 
     companion object {
-
-        /**
-         * Preference values kept only so that stored preferences and the (to be removed) search
-         * settings screens keep resolving. Open Launcher always uses [LawnchairAppSearchAlgorithm].
-         */
-        const val APP_SEARCH = "appSearch"
-        const val LOCAL_SEARCH = "localSearch"
-        const val ASI_SEARCH = "globalSearch"
-
-        /** The ASI / global search integration has been removed. */
-        @Suppress("UNUSED_PARAMETER")
-        fun isASISearchEnabled(context: Context): Boolean = false
-
         fun create(context: Context): LawnchairSearchAlgorithm = LawnchairAppSearchAlgorithm(context)
     }
 }

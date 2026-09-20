@@ -11,7 +11,7 @@ import android.widget.FrameLayout
 import app.lawnchair.LawnchairLauncher
 import app.lawnchair.launcher
 import app.lawnchair.ui.preferences.PreferenceActivity
-import app.lawnchair.ui.preferences.navigation.Smartspace
+import app.lawnchair.ui.preferences.navigation.HomeScreen
 import com.android.launcher3.CheckLongPressHelper
 import com.android.launcher3.InvariantDeviceProfile
 import com.android.launcher3.R
@@ -57,7 +57,7 @@ class SmartspaceViewContainer @JvmOverloads constructor(
         R.drawable.ic_setting,
         StatsLogManager.LauncherEvent.IGNORE,
     ) {
-        context.startActivity(PreferenceActivity.createIntent(context, Smartspace))
+        context.startActivity(PreferenceActivity.createIntent(context, HomeScreen))
         true
     }
 

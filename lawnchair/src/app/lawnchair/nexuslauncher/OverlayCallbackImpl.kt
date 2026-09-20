@@ -150,12 +150,10 @@ class OverlayCallbackImpl(private val mLauncher: LawnchairLauncher) :
          * 或者這個啟動器本身就是系統／debuggable build，可以直接連 Google app。
          */
         @JvmStatic
-        fun minusOneAvailable(context: Context): Boolean =
-            FeedBridge.getInstance(context).isInstalled()
+        fun minusOneAvailable(context: Context): Boolean = FeedBridge.getInstance(context).isInstalled()
 
         /** 本專案的外掛裝了沒有；設定頁用這個決定要不要顯示「需要安裝」提示。 */
         @JvmStatic
-        fun companionInstalled(context: Context): Boolean =
-            FeedBridge.getInstance(context).isCompanionInstalled()
+        fun companionInstalled(context: Context): Boolean = FeedBridge.getInstance(context).isCompanionInstalled()
     }
 }

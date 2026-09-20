@@ -24,15 +24,8 @@ import org.junit.Test
 /**
  * Pure-JVM tests for the drawer category mapping.
  *
- * NOTE: this source set is not wired into the Gradle build yet — `build.gradle` (owned by another
- * work stream) needs:
- *
- * ```
- * android { sourceSets { test { java.srcDirs = ['lawnchair/tests/unit'] } } }
- * dependencies { testImplementation libs.junit }
- * ```
- *
- * after which `./gradlew testLawnWithQuickstepGithubDebugUnitTest` runs it.
+ * This directory is the `test` source set (see `sourceSets` in the root `build.gradle`); run it
+ * with `./gradlew testLawnWithQuickstepGithubDebugUnitTest`.
  */
 class DrawerCategoryBucketsTest {
 
@@ -83,6 +76,81 @@ class DrawerCategoryBucketsTest {
         assertEquals(
             DrawerCategoryBuckets.displayOrder.size,
             DrawerCategoryBuckets.displayOrder.toSet().size,
+        )
+        assertEquals(
+            DrawerCategoryBuckets.claimOrder.size,
+            DrawerCategoryBuckets.claimOrder.toSet().size,
+        )
+    }
+
+    /**
+     * On a typical phone nearly every preinstalled app is a `com.google.*` package and/or flagged
+     * as a system app. If the origin buckets claimed first they would swallow Gmail, Chrome,
+     * Maps, Photos, the dialer and the camera, leaving the purpose folders empty. So they must
+     * come last.
+     */
+    @Test
+    fun `origin buckets claim after every purpose bucket`() {
+        val order = DrawerCategoryBuckets.claimOrder
+        val firstOriginIndex = order.indexOfFirst { it in DrawerCategoryBuckets.originBuckets }
+
+        assertTrue("no origin bucket in claim order", firstOriginIndex >= 0)
+        assertEquals(
+            "origin buckets must be the tail of claimOrder",
+            DrawerCategoryBuckets.originBuckets,
+            order.drop(firstOriginIndex),
+        )
+        // Google before System: a Google app that is also preinstalled lands in the more
+        // specific of the two.
+        assertEquals(
+            listOf(DrawerCategoryBuckets.GOOGLE, DrawerCategoryBuckets.SYSTEM),
+            DrawerCategoryBuckets.originBuckets,
+        )
+    }
+
+    @Test
+    fun `every purpose bucket claims before google and system`() {
+        val order = DrawerCategoryBuckets.claimOrder
+        val purposeBuckets = order.filter { it !in DrawerCategoryBuckets.originBuckets }
+
+        assertEquals(
+            listOf(
+                DrawerCategoryBuckets.COMMUNICATION,
+                DrawerCategoryBuckets.SOCIAL,
+                DrawerCategoryBuckets.MEDIA,
+                DrawerCategoryBuckets.PHOTOGRAPHY,
+                DrawerCategoryBuckets.GAMES,
+                DrawerCategoryBuckets.PRODUCTIVITY,
+                DrawerCategoryBuckets.TOOLS,
+                DrawerCategoryBuckets.SHOPPING,
+                DrawerCategoryBuckets.FINANCE,
+                DrawerCategoryBuckets.TRAVEL,
+                DrawerCategoryBuckets.LIFESTYLE,
+            ),
+            purposeBuckets,
+        )
+        purposeBuckets.forEach { bucket ->
+            assertTrue(
+                "$bucket claims after ${DrawerCategoryBuckets.GOOGLE}",
+                order.indexOf(bucket) < order.indexOf(DrawerCategoryBuckets.GOOGLE),
+            )
+            assertTrue(
+                "$bucket claims after ${DrawerCategoryBuckets.SYSTEM}",
+                order.indexOf(bucket) < order.indexOf(DrawerCategoryBuckets.SYSTEM),
+            )
+        }
+    }
+
+    /** The origin buckets are the only ones not backed by a flowerpot rule set. */
+    @Test
+    fun `origin buckets are backed by the synthetic pots only`() {
+        assertEquals(
+            listOf(DrawerCategoryBuckets.POT_GOOGLE),
+            DrawerCategoryBuckets.potsFor(DrawerCategoryBuckets.GOOGLE),
+        )
+        assertEquals(
+            listOf(DrawerCategoryBuckets.POT_SYSTEM),
+            DrawerCategoryBuckets.potsFor(DrawerCategoryBuckets.SYSTEM),
         )
     }
 

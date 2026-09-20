@@ -5,7 +5,7 @@ import android.content.Context
 import app.lawnchair.smartspace.model.SmartspaceAction
 import app.lawnchair.smartspace.model.SmartspaceTarget
 import app.lawnchair.ui.preferences.PreferenceActivity
-import app.lawnchair.ui.preferences.navigation.Smartspace
+import app.lawnchair.ui.preferences.navigation.HomeScreen
 import app.lawnchair.util.dropWhileBusy
 import com.android.launcher3.R
 import com.android.launcher3.dagger.ApplicationContext
@@ -57,7 +57,7 @@ class SmartspaceProvider @Inject constructor(
         headerAction = SmartspaceAction(
             id = "smartspaceSetupAction",
             title = context.getString(R.string.smartspace_requires_setup),
-            intent = PreferenceActivity.createIntent(context, Smartspace),
+            intent = PreferenceActivity.createIntent(context, HomeScreen),
         ),
         score = 999f,
         featureType = SmartspaceTarget.FeatureType.FEATURE_TIPS,

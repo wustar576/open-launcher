@@ -138,8 +138,6 @@ sealed class QsbSearchProvider(
             FirefoxBeta,
             FirefoxNightly,
             Iceraven,
-            Startpage,
-            StartpageEU,
             IronFox,
             Waterfox,
             Kagi,
