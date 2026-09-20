@@ -41,8 +41,7 @@ import com.android.launcher3.Utilities
  * pattern，超過 `0x7FFFFFFF` 時若當成一般（有號）十進位或十六進位數值解析
  * 會溢位或直接解析失敗。
  */
-private fun parseSignatureHash(hex: String): Int =
-    hex.removePrefix("0x").removePrefix("0X").toULong(16).toInt()
+private fun parseSignatureHash(hex: String): Int = hex.removePrefix("0x").removePrefix("0X").toULong(16).toInt()
 
 /**
  * 決定新聞頁（`-1` 頁）要綁哪一個套件。
