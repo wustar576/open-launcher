@@ -52,6 +52,25 @@
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />
 
+        <!--
+        No-UI trampoline for the app's MAIN/LAUNCHER intent-filter. The home activity
+        (app.lawnchair.LawnchairLauncher, declared in quickstep/AndroidManifest-launcher.xml)
+        deliberately does not carry the LAUNCHER category any more, so this is what the system
+        resolves when the user taps the "Open Launcher" app icon. See LauncherEntryActivity.kt
+        for the Settings-vs-home-screen decision.
+        -->
+        <activity
+            android:name="app.lawnchair.LauncherEntryActivity"
+            android:theme="@style/Theme.Transparent"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name="app.lawnchair.ui.preferences.PreferenceActivity"
             android:autoRemoveFromRecents="true"

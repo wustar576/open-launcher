@@ -55,8 +55,9 @@
         <item>com.google.android.launcher/.StubApp</item>
         <!-- Action Services -->
         <item>com.google.android.as/com.google.android.apps.miphone.aiai.allapps.main.MainDummyActivity</item>
-        <!-- Lawnchair -->
-        <item>@string/launcher_component</item>
+        <!-- Open Launcher's own app-drawer entry (LauncherEntryActivity) is intentionally NOT
+             filtered here: from within our own drawer it is the shortcut to Settings, so it
+             must stay visible and searchable, same as any other app. -->
     </string-array>
 
     <dimen name="page_indicator_dot_size_v2">6dp</dimen>
