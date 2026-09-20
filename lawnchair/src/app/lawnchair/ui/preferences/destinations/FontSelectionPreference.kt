@@ -78,12 +78,8 @@ fun FontSelection(
         list.add(FontCache.Family(FontCache.SystemFont("sans-serif")))
         list.add(FontCache.Family(FontCache.SystemFont("sans-serif-medium")))
         list.add(FontCache.Family(FontCache.SystemFont("sans-serif-condensed")))
-        val googleSansFlexVariants = HashMap<String, FontCache.Font>()
-        googleSansFlexVariants["regular"] = FontCache.ResourceFont(context, R.font.googlesansflex_variable, "Google Sans Flex " + context.getString(R.string.font_weight_regular))
-        googleSansFlexVariants["500"] = FontCache.ResourceFont(context, R.font.googlesansflex_variable, "Google Sans Flex " + context.getString(R.string.font_weight_medium))
-        googleSansFlexVariants["600"] = FontCache.ResourceFont(context, R.font.googlesansflex_variable, "Google Sans Flex " + context.getString(R.string.font_weight_semi_bold))
-        googleSansFlexVariants["700"] = FontCache.ResourceFont(context, R.font.googlesansflex_variable, "Google Sans Flex " + context.getString(R.string.font_weight_bold))
-        list.add(FontCache.Family("Google Sans Flex", googleSansFlexVariants))
+        // Open Launcher does not bundle the (proprietary, unlicensed) Google Sans Flex font;
+        // only system typefaces and downloadable Google Fonts are offered here.
         GoogleFontsListing.INSTANCE.get(context).getFonts().mapTo(list) { font ->
             val variantsMap = HashMap<String, FontCache.Font>()
             val variants = font.variants.toTypedArray()

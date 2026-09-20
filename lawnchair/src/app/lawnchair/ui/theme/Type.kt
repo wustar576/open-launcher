@@ -17,39 +17,9 @@
 package app.lawnchair.ui.theme
 
 import androidx.compose.material3.Typography
-import androidx.compose.ui.unit.sp
 
-private val base = Typography()
-
-val Typography = Typography(
-    displayLarge = base.displayLarge.copy(fontFamily = GoogleSansFlex.Display.Emphasized.Large),
-    displayMedium = base.displayMedium.copy(fontFamily = GoogleSansFlex.Display.Emphasized.Medium),
-    displaySmall = base.displaySmall.copy(fontFamily = GoogleSansFlex.Display.Emphasized.Large),
-    headlineLarge = base.headlineLarge.copy(fontFamily = GoogleSansFlex.Headline.Emphasized.Large),
-    headlineMedium = base.headlineMedium.copy(fontFamily = GoogleSansFlex.Headline.Emphasized.Medium),
-    headlineSmall = base.headlineSmall.copy(fontFamily = GoogleSansFlex.Headline.Emphasized.Large),
-    titleLarge = base.titleLarge.copy(fontFamily = GoogleSansFlex.Title.Emphasized.Large),
-    titleMedium = base.titleMedium.copy(fontFamily = GoogleSansFlex.Title.Emphasized.Medium),
-    titleSmall = base.titleSmall.copy(fontFamily = GoogleSansFlex.Title.Emphasized.Small),
-    bodyLarge = base.bodyLarge.copy(fontFamily = GoogleSansFlex.Body.Normal.Large, letterSpacing = 0.sp),
-    bodyMedium = base.bodyMedium.copy(fontFamily = GoogleSansFlex.Body.Normal.Medium, letterSpacing = 0.1.sp),
-    bodySmall = base.bodySmall.copy(fontFamily = GoogleSansFlex.Body.Normal.Small),
-    labelLarge = base.labelLarge.copy(fontFamily = GoogleSansFlex.Label.Normal.Large),
-    labelMedium = base.labelMedium.copy(fontFamily = GoogleSansFlex.Label.Normal.Medium),
-    labelSmall = base.labelSmall.copy(fontFamily = GoogleSansFlex.Label.Normal.Small),
-    displayLargeEmphasized = base.displayLargeEmphasized.copy(fontFamily = GoogleSansFlex.Display.Emphasized.Large),
-    displayMediumEmphasized = base.displayMediumEmphasized.copy(fontFamily = GoogleSansFlex.Display.Emphasized.Medium),
-    displaySmallEmphasized = base.displaySmallEmphasized.copy(fontFamily = GoogleSansFlex.Display.Emphasized.Large),
-    headlineLargeEmphasized = base.headlineLargeEmphasized.copy(fontFamily = GoogleSansFlex.Headline.Emphasized.Large),
-    headlineMediumEmphasized = base.headlineMediumEmphasized.copy(fontFamily = GoogleSansFlex.Headline.Emphasized.Medium),
-    headlineSmallEmphasized = base.headlineSmallEmphasized.copy(fontFamily = GoogleSansFlex.Headline.Emphasized.Large),
-    titleLargeEmphasized = base.titleLargeEmphasized.copy(fontFamily = GoogleSansFlex.Title.Emphasized.Large),
-    titleMediumEmphasized = base.titleMediumEmphasized.copy(fontFamily = GoogleSansFlex.Title.Emphasized.Medium),
-    titleSmallEmphasized = base.titleSmallEmphasized.copy(fontFamily = GoogleSansFlex.Title.Emphasized.Small),
-    bodyLargeEmphasized = base.bodyLargeEmphasized.copy(fontFamily = GoogleSansFlex.Body.Emphasized.Large),
-    bodyMediumEmphasized = base.bodyMediumEmphasized.copy(fontFamily = GoogleSansFlex.Body.Emphasized.Medium),
-    bodySmallEmphasized = base.bodySmallEmphasized.copy(fontFamily = GoogleSansFlex.Body.Emphasized.Small),
-    labelLargeEmphasized = base.labelLargeEmphasized.copy(fontFamily = GoogleSansFlex.Label.Emphasized.Large),
-    labelMediumEmphasized = base.labelMediumEmphasized.copy(fontFamily = GoogleSansFlex.Label.Emphasized.Medium),
-    labelSmallEmphasized = base.labelSmallEmphasized.copy(fontFamily = GoogleSansFlex.Label.Emphasized.Small),
-)
+/**
+ * Open Launcher uses the platform's default typeface (the device's system font) everywhere,
+ * so this is simply the stock Material 3 [Typography] with no custom font family applied.
+ */
+val Typography = Typography()

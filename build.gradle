@@ -227,7 +227,7 @@ android {
 
         debug {
             applicationIdSuffix ".debug"
-            resValue("string", "derived_app_name", "Lawnchair (Debug)")
+            resValue("string", "derived_app_name", "Open Launcher (Debug)")
 
             manifestPlaceholders.quickstepMinSdk = "0"
             manifestPlaceholders.quickstepMaxSdk = "100000"
@@ -236,7 +236,7 @@ android {
         }
 
         release {
-            resValue("string", "derived_app_name", "Lawnchair")
+            resValue("string", "derived_app_name", "Open Launcher")
             minifyEnabled true
             shrinkResources true
             pseudoLocalesEnabled false
@@ -267,17 +267,7 @@ android {
         }
 
         github {
-            applicationId 'app.lawnchair'
-            dimension "channel"
-        }
-
-        nightly {
-            applicationId 'app.lawnchair.nightly'
-            dimension "channel"
-        }
-
-        play {
-            applicationId "app.lawnchair.play"
+            applicationId 'app.openlauncher'
             dimension "channel"
             isDefault true
         }
@@ -319,20 +309,7 @@ android {
             manifest.srcFile "github/AndroidManifest.xml"
         }
 
-        nightly {
-            manifest.srcFile "nightly/AndroidManifest.xml"
-            res.srcDirs = ["nightly/res"]
-        }
-
         lawnWithQuickstepGithub {
-            manifest.srcFile "quickstep/AndroidManifest-launcher.xml"
-        }
-
-        lawnWithQuickstepNightly {
-            manifest.srcFile "quickstep/AndroidManifest-launcher.xml"
-        }
-
-        lawnWithQuickstepPlay {
             manifest.srcFile "quickstep/AndroidManifest-launcher.xml"
         }
 
@@ -349,7 +326,7 @@ androidComponents {
     onVariants(selector().all()) { variant ->
         def channel = variant.productFlavors.last().second
         variant.outputs.forEach { output ->
-            output.outputFileName.set("Lawnchair.${output.versionName.get()}.$channel.${variant.buildType}.apk")
+            output.outputFileName.set("OpenLauncher.${output.versionName.get()}.$channel.${variant.buildType}.apk")
         }
 
         // Lawnchair-TODO: A better way to sync proto file to the IDE preventing missing or outdated result. Please remove if this is the best solution we have right now

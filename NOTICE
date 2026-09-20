@@ -1,0 +1,110 @@
+Open Launcher
+Copyright 2026 the Open Launcher contributors
+
+This product includes software developed as part of the Android Open Source
+Project (https://source.android.com/), including Launcher3, and software
+developed as part of the Lawnchair project
+(https://github.com/LawnchairLauncher/lawnchair).
+
+Open Launcher is a modified derivative of:
+
+  * AOSP Launcher3 - Copyright (C) The Android Open Source Project
+    Licensed under the Apache License, Version 2.0.
+
+  * Lawnchair Launcher - Copyright 2021-2026 Lawnchair
+    Licensed primarily under the Apache License, Version 2.0, with a number
+    of files licensed under the GNU General Public License v3.0 or later
+    ("GPL-3.0-or-later"), including (but not limited to) the application
+    drawer auto-categorization engine (lawnchair/src/app/lawnchair/flowerpot/),
+    the icon shape engine (lawnchair/src/app/lawnchair/icons/shape/), and the
+    font cache (lawnchair/src/app/lawnchair/font/FontCache.kt). Each such
+    file carries its own "This file is part of Lawnchair Launcher" GPL header,
+    which has been left unmodified.
+
+Because this combined work incorporates GPL-3.0-or-later licensed source
+files that are not separable from the rest of the application at build time,
+the work as a whole is distributed under the terms of the GNU General Public
+License v3.0 or later. The full license text is provided in COPYING. The
+Apache License, Version 2.0 text and the original AOSP/Lawnchair copyright
+notices remain in LICENSE.txt as required by Apache-2.0 Section 4, and are
+not altered or removed by this notice.
+
+================================================================================
+Trademark notice
+================================================================================
+
+"Lawnchair" and any associated logos or icon artwork are trademarks/creative
+works of the Lawnchair project and are NOT used, reproduced, or redistributed
+by Open Launcher. Apache License 2.0 Section 6 does not grant trademark
+rights, so this project does not use the Lawnchair name, wordmark, or icon
+anywhere in its user interface, application metadata, or store listing.
+Open Launcher ships its own, independently authored name, application id
+(app.openlauncher) and launcher icon.
+
+Open Launcher is an independent, community-maintained fork. It is not
+affiliated with, endorsed by, or supported by the Lawnchair team or the
+Android Open Source Project.
+
+================================================================================
+Summary of modifications made by the Open Launcher project
+================================================================================
+
+Relative to the upstream Lawnchair `16-dev` branch, this fork has (among
+other changes):
+
+  * Replaced the application id, display name, deep-link URI scheme, and APK
+    output naming ("Lawnchair" -> "Open Launcher" / app.lawnchair ->
+    app.openlauncher); the internal Kotlin/Java package app.lawnchair and
+    class names such as LawnchairLauncher were intentionally kept unchanged
+    to minimize the diff against upstream (they are not user-visible).
+  * Replaced the launcher icon (adaptive icon background/foreground/
+    monochrome layers) with original, independently authored vector artwork;
+    removed all raster Play Store / nightly-flavor icon assets.
+  * Removed the "nightly" and "play" build flavors/channels, keeping only a
+    single "github" channel (application id app.openlauncher).
+  * Rewrote the in-app About screen to remove the core team / contributor
+    list, GitHub contributor-activity fetching, avatar/imgur image loading,
+    donation and OpenCollective links, Telegram/Discord/X community links,
+    and the nightly build auto-updater (including its GitHub API polling and
+    APK download/install flow); the About screen now only shows the app
+    name, version, a link to this project's GitHub repository, an
+    acknowledgements/licenses entry, and a notice that the app is a
+    derivative of Lawnchair and AOSP Launcher3.
+  * Removed the katbin.in crash-report upload feature from the bug-report
+    flow; local crash capture and copy-to-clipboard remain available.
+  * Removed the bundled Google Sans Flex variable font (proprietary, no
+    license file was present in the upstream tree) and changed the default
+    text/heading/body typefaces to resolve to the system default typeface.
+  * Removed prebuilts/libs/libGoogleFeed.jar (unreferenced, unknown
+    provenance).
+  * Removed upstream-specific CI/community infrastructure (Crowdin
+    workflows/config, OpenCollective/Telegram/Discord/nightly-release
+    workflows, Fastlane store metadata, funding links) that pointed at
+    Lawnchair's own infrastructure and is not applicable to this fork.
+  * Rewrote README.md and issue templates for this project.
+
+This is a summary for Apache License 2.0 Section 4(b) purposes and does not
+list every changed line; see the git history of
+https://github.com/wustar576/open-launcher for the complete set of changes.
+
+================================================================================
+Third-party components bundled in this repository
+================================================================================
+
+  * flowerpot (lawnchair/src/app/lawnchair/flowerpot/,
+    lawnchair/assets/flowerpot/) - GPL-3.0-or-later, originally part of the
+    Lawnchair project.
+
+  * Gradle/Maven third-party libraries pulled in as build dependencies (for
+    example androidx.*, Kotlin/kotlinx, Retrofit, Room, Dagger/Hilt, Coil,
+    Lottie, libsu, opto (MIT), HiddenApiRefinePlugin, and others) retain
+    their own upstream licenses (mostly Apache-2.0, plus a small number of
+    MIT/BSD-3-Clause dependencies). These are not modified by this project.
+    An up-to-date machine-generated report of every such dependency and its
+    license is produced at build time by the `licensee` Gradle plugin at
+    `licenses.json`, and the set of licenses this project accepts is
+    declared in the root build.gradle `licensee { ... }` block.
+
+  * See LICENSE.txt for the Apache License 2.0 text and the original
+    AOSP/Lawnchair copyright headers, and COPYING for the GPL-3.0-or-later
+    text that governs this combined work as a whole.
