@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Open Launcher Feed</string>
+
+    <string name="info_title">Open Launcher Feed</string>
+    <string name="info_package">Package: %1$s</string>
+    <string name="info_uid">UID: %1$s</string>
+    <string name="info_debuggable">Debuggable: %1$s</string>
+    <string name="info_uri">Overlay URI: %1$s</string>
+    <string name="info_google_app">Google app: %1$s</string>
+    <string name="info_available">available</string>
+    <string name="info_missing">missing or disabled</string>
+    <string name="info_body">This helper app has no interface of its own. It exists only so that Open Launcher can show the Google Discover feed: the feed service accepts debuggable or system apps as clients, and a normally installed launcher is neither.\n\nIt requests no permissions, has no internet access, and collects nothing.</string>
+</resources>

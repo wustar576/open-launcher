@@ -2,7 +2,6 @@ package app.lawnchair.nexuslauncher
 
 import android.app.Activity
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import app.lawnchair.FeedBridge
 import app.lawnchair.LawnchairLauncher
@@ -146,10 +145,17 @@ class OverlayCallbackImpl(private val mLauncher: LawnchairLauncher) :
     companion object {
         private const val PREF_PERSIST_FLAGS = "pref_persistent_flags"
 
-        fun minusOneAvailable(context: Context): Boolean {
-            return FeedBridge.useBridge(context) ||
-                context.applicationInfo.flags and
-                (ApplicationInfo.FLAG_DEBUGGABLE or ApplicationInfo.FLAG_SYSTEM) != 0
-        }
+        /**
+         * 新聞頁是否可用：裝了 Open Launcher Feed 外掛（或使用者指定的提供者），
+         * 或者這個啟動器本身就是系統／debuggable build，可以直接連 Google app。
+         */
+        @JvmStatic
+        fun minusOneAvailable(context: Context): Boolean =
+            FeedBridge.getInstance(context).isInstalled()
+
+        /** 本專案的外掛裝了沒有；設定頁用這個決定要不要顯示「需要安裝」提示。 */
+        @JvmStatic
+        fun companionInstalled(context: Context): Boolean =
+            FeedBridge.getInstance(context).isCompanionInstalled()
     }
 }
