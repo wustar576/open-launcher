@@ -1,68 +1,90 @@
-# Open Launcher
+<p align="center">
+  <img src="docs/assets/icon.png" width="112" alt="Open Launcher 圖示">
+</p>
 
-[![CI](https://github.com/wustar576/open-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/wustar576/open-launcher/actions/workflows/ci.yml)
+<h1 align="center">Open Launcher</h1>
 
-Open Launcher 是一個簡潔、貼近 Android 原生外觀的自由開源桌面啟動器（launcher）。專案衍生自 [Lawnchair](https://github.com/LawnchairLauncher/lawnchair) 與 AOSP Launcher3，但刻意大幅簡化：移除了 Lawnchair 的品牌識別、社群連結、遙測／更新檢查與大部分自訂選項，只保留貼近原生 Pixel 啟動器的核心體驗。
+<p align="center">
+  只做三件事的 Android 桌面啟動器：桌面、應用程式抽屜、Google 新聞頁。
+</p>
 
-**本專案與 Lawnchair 團隊沒有任何關係，也未獲得其背書。**「Lawnchair」名稱、圖示與商標僅屬於原專案所有；Open Launcher 是依 Apache-2.0 授權條款進行的獨立衍生作品。
+<p align="center">
+  <a href="https://github.com/wustar576/open-launcher/actions/workflows/ci.yml"><img src="https://github.com/wustar576/open-launcher/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" alt="Android 8.0+">
+  <img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later">
+</p>
 
-## 三項功能
+## 為什麼做這個
 
-Open Launcher 只提供以下三項功能，其餘一律不在範圍內（例如圖示包、字型選擇、手勢自訂、備份還原、Quickstep 整合、網路搜尋建議或任何遙測）：
+現成的第三方啟動器功能很多，但多數人每天真正用到的只有三樣：把 App 和小工具擺在桌面上、在抽屜裡找 App、向右滑看新聞。Open Launcher 只保留這三件事，其他一律拿掉：
 
-1. **桌面**：背景透明、直接顯示桌布，可擺放應用程式圖示與小工具。
-2. **應用程式抽屜**：提供基礎的自動分類資料夾，並可依名稱模糊搜尋本機已安裝的應用程式；搜尋過程完全在裝置端進行，不會發出任何網路請求。
-3. **Blink 新聞頁外掛**：在主畫面向右滑動可開啟 Google Discover 新聞頁。此功能由**另一個獨立的 APK**（位於本儲存庫的 [`feed/`](feed/) 目錄，是獨立的 Gradle 專案）提供，啟動器本體並不內含，也不需要安裝就能正常使用桌面與抽屜。
+- **外觀貼近原生**：5×5 格線、系統字型、系統強調色，沒有多餘的裝飾。
+- **設定很少**：設定頁只有「主畫面」「應用程式抽屜」「關於」三頁。
+- **啟動器本體不連網**：沒有網路權限，沒有遙測、更新檢查或遠端設定。
 
-更完整的產品規格請見 [`docs/specs/open-launcher-spec.md`](docs/specs/open-launcher-spec.md)。
+<p align="center">
+  <img src="docs/assets/screenshot-home.png" width="270" alt="桌面：背景透明，直接顯示桌布">
+  &nbsp;&nbsp;
+  <img src="docs/assets/screenshot-settings.png" width="270" alt="主畫面設定頁">
+</p>
 
-## 建置方式
+## 功能
 
-1. 準備環境：Android Studio（內建 JBR，即 JetBrains Runtime）、已設定好的 Android SDK（`local.properties` 需指向 SDK 路徑）。
-2. 於儲存庫根目錄執行（Git Bash）：
+### 桌面
 
-   ```bash
-   JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew assembleLawnWithQuickstepGithubDebug --no-daemon
-   ```
+背景完全透明，直接顯示桌布。可以擺放應用程式、建立資料夾、加入與縮放小工具。長按空白處只有三個選項：桌布、小工具、主畫面設定。
 
-3. 建置完成後，debug APK 會輸出在 `build/outputs/apk/` 對應的資料夾中，檔名格式為 `OpenLauncher.<版本>.github.debug.apk`。
+### 應用程式抽屜
 
-新聞頁外掛（`feed/`）是獨立的 Gradle 專案，需另外進入該目錄以其自身的 wrapper 建置，詳見該目錄內的說明。
+- **自動分類**：A–Z 清單上方會依用途自動產生分類資料夾（通訊、影音娛樂、相片、生產力、工具、生活……）。成員太少的分類不會出現；所有 App 仍然完整列在 A–Z 清單裡，不會被藏起來。
+- **搜尋**：只搜尋本機的應用程式與捷徑，支援模糊比對，打錯一兩個字也找得到。搜尋完全在裝置上進行。
+- 抽屜裡的「Open Launcher」圖示就是設定頁的捷徑。
 
-### 本機測試用 release 建置（debug key 簽署）
+### 新聞頁（Open Launcher Feed）
 
-沒有正式 release keystore 時，也可以建置**可安裝、非 debug** 的 release 版本供本機測試：
+在桌面第一頁向右滑，開啟 Google Discover。
 
-1. 根目錄若沒有 `keystore.properties`，`build.gradle` 的 release 簽章設定會自動退回使用
-   系統的 Android debug keystore（`~/.android/debug.keystore`，別名 `androiddebugkey`，
-   密碼皆為 `android`）簽署啟動器 release 版。要換回正式簽章，只要在根目錄放一份
-   `keystore.properties`（`keyAlias`／`keyPassword`／`storeFile`／`storePassword`）即可，
-   不需要改程式碼。
-2. 建置啟動器 release 版：
-   ```bash
-   JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew assembleLawnWithQuickstepGithubRelease --no-daemon
-   ```
-3. `feed/build.gradle.kts` 的 release build type **一律**用 AGP 內建的 `debug` 簽章設定簽署
-   （見 [`feed/README.md`](feed/README.md)，這是刻意的設計，與正式／測試無關）。
-4. 啟動器 release 版會驗證外掛的簽章雜湊，預設是「尚未填入」的佔位值，一律拒絕外掛。
-   要讓本機測試的 release 啟動器接受外掛，需要把簽章雜湊填進根目錄的 `local.properties`
-   （`feedSignatureHash=0x...`，該檔已被 git 忽略）；取得方式與注入機制見
-   [`feed/README.md`](feed/README.md) 的「取得 release 簽章雜湊」章節。**正式發佈**用真正的
-   release keystore 簽外掛時，同樣要用該章節的方法算出那把 keystore 的雜湊並注入，不能沿用
-   debug keystore 算出的值。
+Google app 只允許系統 App 或可偵錯（debuggable）的 App 連接它的新聞頁服務，一般安裝的啟動器連不上。因此這個功能由**另一個獨立的小 APK**（[`feed/`](feed/)）負責轉接：它沒有任何權限、不存任何資料，只做連線轉送；啟動器本體則維持正常的正式版。不裝它，桌面與抽屜照常使用。原理與測試方式見 [`feed/README.md`](feed/README.md)。
 
-### 建置注意事項
+## 安裝
 
-- **切換分支／合併後請先乾淨建置再裝機**：每次 `git pull`／合併／切換分支之後，若要把 APK 裝到實機測試，請先執行 `./gradlew clean`，或手動刪除 `build/kotlin` 與 `build/intermediates/built_in_kotlinc` 兩個目錄，再重新建置。原因是 Kotlin 的增量編譯（incremental compilation）在切換分支後可能只重新編譯了部分類別，導致產物不同步；曾經實際出現的症狀是安裝後啟動器立即以 `NoSuchFieldError: No field $stable ... BasePreferenceManager$StringPref` 閃退，重新乾淨建置後問題就消失，原始碼本身並沒有問題。
-- **Windows 上的 KSP 「different roots」flake**：在 Windows（尤其專案與使用者暫存目錄不同磁碟機代號時）偶爾會遇到 KSP 回報 "different roots" 的建置失敗，這是已知的環境性偶發問題，並非程式碼錯誤；直接重新執行同一個建置指令即可。也因為如此，**不要**在同一個 session 裡緊接著先跑 spotless 再跑 assemble，以免更容易觸發這個 flake。
-- **快速驗證 APK**：建置完成後，可先用 `unzip -l` 或 Android Studio 的 APK Analyzer 檢查輸出的 `build/outputs/apk/**/*.apk` 內是否包含預期的 `classes*.dex`、資源與 `AndroidManifest.xml`，確認產物不是空的或不完整的；若要更深入確認某個類別是否真的被編譯進去，可選擇性地用 `dexdump`（Android SDK build-tools 內附）對 `classes.dex` 做反組譯抽查，但這一步非必要，多數情況下裝置安裝並實際操作即可驗證。
+> 目前還沒有發佈版本，現階段請先[從原始碼建置](#從原始碼建置)。發佈後的安裝步驟如下：
 
+1. 到 [Releases](https://github.com/wustar576/open-launcher/releases) 下載 `OpenLauncher-*.apk`；需要新聞頁的話再下載 `open-launcher-feed-*.apk`。
+2. 安裝後到「設定 → 應用程式 → 預設應用程式 → 主畫面應用程式」選擇 Open Launcher。
+3. 之後想換回原本的桌面，可從「主畫面設定 → 變更預設主畫面應用程式」切換。
 
+需求：Android 8.0 以上；新聞頁另外需要已安裝並登入的 Google app。
 
-本專案整體以 **GPL-3.0-or-later** 授權發佈（因樹內包含數個 GPL-3.0-or-later 檔案，例如抽屜分類所需的 `flowerpot/`）。上游 AOSP Launcher3 與 Lawnchair 的主要部份為 Apache-2.0 授權；相關著作權聲明與授權全文請見 [`LICENSE.txt`](LICENSE.txt) 與 [`NOTICE`](NOTICE)。
+## 專案狀態
 
-## 與 Lawnchair 的關係
+開發中，尚未發佈正式版本。
 
-Open Launcher 是 Lawnchair（`LawnchairLauncher/lawnchair`，`16-dev` 分支）的原始碼修改衍生版本，同時也使用了 AOSP Launcher3 的程式碼。修改內容主要包含：移除品牌識別、社群／贊助／自動更新相關程式碼與連結、精簡設定頁、加入應用程式抽屜自動分類，以及將新聞頁功能拆分為獨立外掛 APK。詳細修改範圍請見 [`NOTICE`](NOTICE)。
+| 項目 | 狀態 |
+|---|---|
+| 桌面、小工具、抽屜分類與搜尋 | 已在實機（Pixel 10 / Android 16）驗證 |
+| 新聞頁（開發版啟動器） | 已在實機驗證 |
+| 新聞頁（正式版啟動器 + 外掛） | 尚未打通，除錯中（紀錄見 [`feed/README.md`](feed/README.md)） |
 
-本專案不隸屬於 Lawnchair 開發團隊，亦未經其審核或背書；如有問題請至[本儲存庫的 Issues](https://github.com/wustar576/open-launcher/issues) 回報，不要回報至 Lawnchair 官方頻道。
+## 從原始碼建置
+
+需要 Android Studio（使用內建的 JBR）與 Android SDK。
+
+```bash
+./gradlew assembleLawnWithQuickstepGithubDebug      # 啟動器
+cd feed && ./gradlew assembleDebug                  # 新聞頁外掛（獨立的 Gradle 專案）
+```
+
+切換分支或合併之後，請先 `./gradlew clean` 再建置要裝到手機的 APK。正式版簽章、外掛簽章雜湊與 Windows 上的已知問題見 [`docs/BUILDING.md`](docs/BUILDING.md)；產品規格見 [`docs/specs/open-launcher-spec.md`](docs/specs/open-launcher-spec.md)。
+
+## 參與
+
+問題與建議請開 [Issue](https://github.com/wustar576/open-launcher/issues)；細節見 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
+## 授權與致謝
+
+Open Launcher 以 **GPL-3.0-or-later** 授權發佈（[`COPYING`](COPYING)）。
+
+本專案衍生自 [AOSP Launcher3](https://android.googlesource.com/platform/packages/apps/Launcher3/) 與 [Lawnchair](https://github.com/LawnchairLauncher/lawnchair)（皆為 Apache-2.0，部分檔案為 GPL-3.0-or-later），感謝這兩個專案的貢獻者。原始著作權聲明與修改範圍見 [`LICENSE.txt`](LICENSE.txt) 與 [`NOTICE`](NOTICE)。
+
+Open Launcher 是獨立專案，與 Lawnchair 團隊及 Google 無關，也未經其背書。
