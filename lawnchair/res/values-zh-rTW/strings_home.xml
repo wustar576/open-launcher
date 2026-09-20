@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026, Open Launcher contributors
+  ~
+  ~ Strings for Home screen settings additions that don't belong in the main
+  ~ strings.xml (kept separate to avoid merge conflicts with unrelated workstreams).
+  -->
+<resources>
+    <string name="change_default_home_app_label">變更預設主畫面應用程式</string>
+    <string name="change_default_home_app_current">目前：%1$s</string>
+</resources>

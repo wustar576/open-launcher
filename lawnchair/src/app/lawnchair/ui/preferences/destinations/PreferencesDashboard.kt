@@ -17,6 +17,7 @@
 package app.lawnchair.ui.preferences.destinations
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -217,9 +218,7 @@ fun PreferencesSetDefaultLauncherWarning(
             modifier = Modifier,
             onClick = {
                 mMSDLPlayerWrapper.playToken(MSDLToken.TAP_MEDIUM_EMPHASIS)
-                Intent(Settings.ACTION_HOME_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    .let { context.startActivity(it) }
+                openDefaultHomeAppSettings(context)
                 (context as? Activity)?.finish()
             },
             title = {
@@ -245,4 +244,35 @@ fun openAppInfo(context: Context) {
     val launcherApps = context.getSystemService<LauncherApps>()
     val componentName = ComponentName(context, LawnchairLauncher::class.java)
     launcherApps?.startAppDetailsActivity(componentName, Process.myUserHandle(), null, null)
+}
+
+/**
+ * Opens the system screen for changing the default home app, trying progressively more
+ * generic targets so this never dead-ends the user:
+ * 1. [Settings.ACTION_HOME_SETTINGS] - the screen that specifically lists home/launcher apps
+ *    on stock Android and most OEM skins.
+ * 2. [Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS] - the general default-apps screen some
+ *    OEMs ship instead (home apps are usually one entry within it).
+ * 3. This app's own details page, from which "Open by default" / "Set as default" can still
+ *    be reached manually.
+ *
+ * Shared by [PreferencesSetDefaultLauncherWarning] and the "change default home app" row in
+ * Home screen settings so the two entry points cannot drift apart.
+ */
+fun openDefaultHomeAppSettings(context: Context) {
+    val candidates = listOf(
+        Intent(Settings.ACTION_HOME_SETTINGS),
+        Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
+    )
+    for (candidate in candidates) {
+        candidate.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (candidate.resolveActivity(context.packageManager) == null) continue
+        try {
+            context.startActivity(candidate)
+            return
+        } catch (e: ActivityNotFoundException) {
+            // Try the next, more generic candidate.
+        }
+    }
+    openAppInfo(context)
 }
