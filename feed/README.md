@@ -338,6 +338,81 @@ I LauncherClient:  overlay status changed: 0x19 (scroll events accepted)
 Google app，代價是捲動回呼多一跳 oneway IPC，換到的是「Google app 到底有沒有回話」這件事
 從此看得見。
 
+### 4.10 release 版啟動器 + 外掛：查到哪裡（2026-09-20，**尚未解決**）
+
+狀況：**release 版**啟動器（`app.openlauncher`，不是 debuggable、已設為預設桌面）配
+release 版外掛（同一把 debug key，簽章檢查有過，沒有 `FeedBridge … rejected`）時，
+`windowAttached2` 送出去之後**永遠等不到 `overlayStatusChanged`**，向右滑沒反應。
+同一個外掛在 debug 版啟動器上（commit 5659722 的建置）當天稍早是可以滑出 Discover 的。
+
+#### 轉送出去的 attach 到底長什麼樣（新加的診斷 log）
+
+```
+I OLFeed.Proxy: windowAttached2 payload: keys=[client_options, configuration, layout_params]
+                | layout_params: packageName=app.openlauncher type=1 flags=0x81910100 token=present
+                  title=app.openlauncher/app.lawnchair.LawnchairLauncher
+                | client_options=0xf
+                | configuration: orientation=1 density=540 smallestWidth=320dp locale=zh_TW_#Hant
+```
+
+bundle 就只有這三個 key。裡面唯一「寫著啟動器是誰」的東西是 `layout_params` 的
+`packageName` 與視窗標題（`token` 一定得是啟動器的，overlay 視窗就掛在它上面）。
+
+#### 試過、而且**沒有用**的四件事
+
+| # | 假設 | 做法 | 結果 |
+|---|---|---|---|
+| 1 | Google app 拿 `layout_params.packageName` 去驗 debuggable | 轉送前改寫成外掛自己的套件名 | 沒有 `overlayStatusChanged` |
+| 2 | 視窗標題也洩漏啟動器身分 | 標題一併改寫成 `app.openlauncher.feed/…OverlayBridgeService` | 同上 |
+| 3 | Google app 還記著上一個 window token（§4.9 的老毛病） | attach 前先補一發 `windowDetached(false)` | 同上；`dumpsys` 裡那個陳舊視窗也沒消失 |
+| 4 | 包一層 `CallbackRelay` 改掉了 callback binder 的身分 | 改回原樣轉交啟動器的 callback（＝唯一成功過那版的 wire 行為） | 同上 |
+
+這四個開關留在 `LauncherOverlayProxy.kt` 最上面（`REWRITE_CLIENT_IDENTITY`、
+`WRAP_CALLBACK`、`DETACH_BEFORE_ATTACH`），目前**全部關閉**，也就是現在送出去的東西
+跟當天唯一成功過的版本一模一樣，只是多了診斷 log。
+
+#### 最關鍵的一條新證據：Google app 其實有在跟外掛講話
+
+外掛在上游連上之後會打一發**阻塞式**交易當 ping：
+
+```
+I OLFeed.Proxy: upstream ping: hasOverlayContent() = true
+```
+
+`windowAttached2` 是 oneway，對方不理我們時完全沒有回音；但 `hasOverlayContent()`
+**答得出來**，代表 binder 是活的、Google app 願意處理外掛送去的交易。
+**所以「因為啟動器不是 debuggable 所以被拒絕」這個說法，現有證據並不支持**——被拒絕的
+不是外掛這個客戶端，而是這一次 attach 沒有變成視窗。
+
+#### `dumpsys` 看到的東西
+
+- `dumpsys window windows`：Google app 留了一個 `GoogleDiscoverWindow` 掛在**早就死掉的**
+  debug 版啟動器活動 token 上（`mHasSurface=false`、`mWindowRemovalAllowed=false`），
+  是當天稍早那次成功 session 留下來的。重新安裝 debug 版啟動器讓那個 token 消失之後，
+  這個視窗才跟著不見——但 release 版啟動器的 attach 依然生不出新的視窗。
+  順帶證實：Google app 會把客戶端送去的 `layout_params.packageName` 原樣寫進它建立的
+  視窗屬性（那個陳舊視窗的 `package=app.openlauncher.debug`）。
+- `dumpsys activity services com.google.android.googlequicksearchbox`：
+  `DrawerOverlayService` 這個 service 實例已經活了 **1 小時 45 分**，橫跨當天所有 session
+  都沒有被銷毀，而且**還有別的客戶端綁著**——`com.teslacoilsw.launcherclientproxy`
+  （Nova Launcher 的同款外掛，`?v=9`）正連著。
+
+#### 下一步（依序，第一步是決定性的）
+
+1. **重啟 Google app 再測一次**：`adb shell am force-stop com.google.android.googlequicksearchbox`
+   （或重開機），然後在 release 版啟動器的第一頁向右滑。上面兩條 `dumpsys` 證據都指向
+   「那個 overlay service 實例卡住了」——它握過一個陳舊視窗、又同時被別家外掛綁著。
+   如果重啟後就好了，那麼「release 版啟動器被拒絕」整件事是誤判，真正該寫進文件的是
+   §4.6 那類「Google app 卡住 → 重連」的處理。
+2. 若還是不行，再用**啟動器這一軸**做 A/B：把 debug 版啟動器設為預設桌面、提供者選外掛，
+   同一個外掛再滑一次。成功＝問題真的在啟動器的身分（見下一段），失敗＝問題在裝置目前的
+   Google app 狀態。
+3. 如果最後真的證實 Google app 會去驗「視窗 token 屬於誰」或「目前的預設桌面是誰」，
+   那就不是轉送層能解決的：外掛沒辦法替啟動器的視窗變出另一個身分，除非改成由**外掛自己
+   持有 overlay 視窗**（需要 `SYSTEM_ALERT_WINDOW` 權限、自己處理捲動與層級，與「零權限」
+   的設計前提直接衝突），或是接受啟動器本體 debuggable（安全上不可接受）。這兩條都不建議，
+   應該先把第 1、2 步的證據拿到手。
+
 ## 5. 已知風險
 
 1. ~~**(B) bridge 模式的身分問題**~~ → **已實機證實會失敗**（2026-09-20，Pixel 10 /

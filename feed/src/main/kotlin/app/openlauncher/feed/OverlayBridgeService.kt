@@ -43,7 +43,9 @@ class OverlayBridgeService : Service() {
         )
         when (mode) {
             BridgeMode.BRIDGE -> bridgeBinder = BridgeBinder(connector, handler)
-            BridgeMode.OVERLAY_PROXY -> overlayProxy = LauncherOverlayProxy()
+            // 外掛自己的套件名要交給 proxy：轉送 windowAttached* 之前，
+            // LayoutParams.packageName 會被改寫成它（見 AttachPayload）。
+            BridgeMode.OVERLAY_PROXY -> overlayProxy = LauncherOverlayProxy(packageName)
         }
     }
 
