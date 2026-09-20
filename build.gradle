@@ -147,6 +147,20 @@ final def majorVersion = versionDisplayName.split("\\.")[0]
 final def quickstepMinSdk = "35"
 final def quickstepMaxSdk = "36"
 
+// Open Launcher Feed（app.openlauncher.feed）release 簽章的雜湊值，用來覆寫
+// lawnchair/res/values/bridge.xml 裡的佔位值。優先順序：-PfeedSignatureHash
+// > 環境變數 FEED_SIGNATURE_HASH > local.properties 的 feedSignatureHash。
+// 三者都沒有時維持 tracked 的佔位值（"not configured"），行為不變。
+// 取得方式見 feed/README.md 的「取得 release 簽章雜湊」章節。
+final def localProperties = new Properties()
+final def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.newInputStream())
+}
+final def feedSignatureHash = (project.findProperty("feedSignatureHash")
+        ?: System.getenv("FEED_SIGNATURE_HASH")
+        ?: localProperties.getProperty("feedSignatureHash"))
+
 android {
     namespace "com.android.launcher3"
     defaultConfig {
@@ -236,6 +250,10 @@ android {
 
         release {
             resValue("string", "derived_app_name", "Open Launcher")
+            if (feedSignatureHash) {
+                // Overrides the tracked placeholder in bridge.xml for this variant only.
+                resValue("string", "feed_bridge_signature_hash", feedSignatureHash)
+            }
             minifyEnabled true
             shrinkResources true
             pseudoLocalesEnabled false

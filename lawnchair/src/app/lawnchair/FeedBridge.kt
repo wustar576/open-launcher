@@ -34,6 +34,17 @@ import com.android.launcher3.R
 import com.android.launcher3.Utilities
 
 /**
+ * 把 `bridge.xml` 裡的十六進位字串（例如 `0xE98406A1`）解析成
+ * `android.content.pm.Signature.hashCode()` 會回傳的那個有號 32-bit int。
+ *
+ * 存成字串、以無號方式解析再轉型是刻意的：這個雜湊本身就是任意的 32-bit
+ * pattern，超過 `0x7FFFFFFF` 時若當成一般（有號）十進位或十六進位數值解析
+ * 會溢位或直接解析失敗。
+ */
+private fun parseSignatureHash(hex: String): Int =
+    hex.removePrefix("0x").removePrefix("0X").toULong(16).toInt()
+
+/**
  * 決定新聞頁（`-1` 頁）要綁哪一個套件。
  *
  * 只有兩條路：
@@ -60,7 +71,7 @@ class FeedBridge(private val context: Context) {
 
     /** 內建（自動解析）的 bridge 清單。目前只有本專案的外掛。 */
     private val bridgePackages by lazy {
-        listOf(BridgeInfo(FEED_PACKAGE, R.integer.feed_bridge_signature_hash))
+        listOf(BridgeInfo(FEED_PACKAGE, R.string.feed_bridge_signature_hash))
     }
 
     /**
@@ -93,7 +104,7 @@ class FeedBridge(private val context: Context) {
 
     open inner class BridgeInfo(val packageName: String, signatureHashRes: Int) {
         protected open val signatureHash =
-            if (signatureHashRes > 0) context.resources.getInteger(signatureHashRes) else 0
+            if (signatureHashRes > 0) parseSignatureHash(context.resources.getString(signatureHashRes)) else 0
 
         fun isAvailable(): Boolean {
             val info = context.packageManager.resolveService(
@@ -217,7 +228,7 @@ class FeedBridge(private val context: Context) {
         private val whitelist = mutableMapOf<String, Int>()
 
         fun initializeWhitelist(context: Context) {
-            whitelist[FEED_PACKAGE] = context.resources.getInteger(R.integer.feed_bridge_signature_hash)
+            whitelist[FEED_PACKAGE] = parseSignatureHash(context.resources.getString(R.string.feed_bridge_signature_hash))
             whitelist[GOOGLE_APP_PACKAGE] = 0xe3ca78d8.toInt()
         }
 

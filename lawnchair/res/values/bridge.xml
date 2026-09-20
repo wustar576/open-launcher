@@ -18,14 +18,22 @@
 
 <resources>
     <!--
-      Open Launcher Feed（app.openlauncher.feed）release 簽章的雜湊值。
+      Open Launcher Feed（app.openlauncher.feed）release 簽章的雜湊值
+      （android.content.pm.Signature.hashCode()，也就是憑證 DER bytes 的
+      java.util.Arrays.hashCode，不是 SHA-256 指紋）。
+
+      存成字串是刻意的：這個雜湊是有號 32-bit int，超過 0x7FFFFFFF 的值當
+      <integer> 用 aapt 解析可能會出錯；FeedBridge.kt 會把這裡的十六進位字串
+      當成「無號」數值解析再轉成 Int，所以任何 32-bit 雜湊都能正確表示。
 
       0x0 是「尚未填入」的佔位值：
       - debug build 完全不驗簽章，所以用 debug keystore 簽的外掛可以直接使用。
       - release build 會拒絕外掛並在 logcat（tag FeedBridge）印出實際的雜湊值。
 
-      發佈前請依 feed/README.md 的「取得 release 簽章雜湊」章節，把這裡換成
-      正式 keystore 簽出來的值。
+      這個值不需要手動編輯這個檔案：根目錄 build.gradle 會在 release 變體讀取
+      local.properties 的 feedSignatureHash（或 -PfeedSignatureHash / 環境變數
+      FEED_SIGNATURE_HASH），以 resValue 覆寫這裡的佔位值；沒有設定時就維持
+      「尚未填入」的行為。細節見 feed/README.md 的「取得 release 簽章雜湊」章節。
     -->
-    <integer name="feed_bridge_signature_hash">0x0</integer>
+    <string name="feed_bridge_signature_hash" translatable="false">0x0</string>
 </resources>

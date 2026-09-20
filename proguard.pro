@@ -4,7 +4,7 @@
 -allowaccessmodification
 -dontusemixedcaseclassnames
 -allowaccessmodification
--keepattributes InnerClasses, *Annotation*, Signature, SourceFile, LineNumberTable
+-keepattributes InnerClasses, EnclosingMethod, *Annotation*, Signature, SourceFile, LineNumberTable
 
 # Remove some Kotlin overhead
 -processkotlinnullchecks remove

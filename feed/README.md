@@ -110,13 +110,42 @@ adb shell am start -n app.openlauncher.feed/.FeedInfoActivity
 ## 3. 取得 release 簽章雜湊
 
 啟動器的 release 版本會驗證外掛的簽章，期望值放在
-`lawnchair/res/values/bridge.xml` 的 `feed_bridge_signature_hash`。
-預設是佔位值 `0x0`，代表「尚未填入」：
+`lawnchair/res/values/bridge.xml` 的 `feed_bridge_signature_hash`（字串資源，內容是
+`0x` 開頭的十六進位；存成字串是因為這個雜湊是有號 32-bit int，超過 `0x7FFFFFFF` 時
+用 `<integer>` 資源可能解析失敗）。tracked 的預設值是佔位值 `0x0`，代表「尚未填入」：
 
 - **debug 版啟動器**完全不驗簽章，所以用 debug keystore 簽的外掛可以直接使用。
 - **release 版啟動器**會拒絕外掛，並在 logcat 印出實際看到的值。
 
-填入步驟：
+**不需要手動編輯 `bridge.xml`。** 根目錄 `build.gradle` 會在編譯 release 變體時，
+依序讀取 `-PfeedSignatureHash` Gradle 屬性 → 環境變數 `FEED_SIGNATURE_HASH` →
+根目錄 `local.properties` 的 `feedSignatureHash`，用 `resValue` 覆寫該佔位值；三者
+都沒有設定時就維持「尚未填入」的行為。填入步驟：
+
+### 方法 A：直接用 keytool + jshell／小型 Java 程式算（推薦，不必先裝機）
+
+這個雜湊是 `android.content.pm.Signature.hashCode()`，等於憑證 DER bytes 的
+`java.util.Arrays.hashCode(byte[])`——**不是** SHA-256 指紋，`apksigner`／`keytool`
+印出的指紋不能直接拿來用。用簽外掛的那把 keystore 匯出憑證，再自己算：
+
+```bash
+# 例如用 debug keystore（別名 androiddebugkey，密碼 android）
+keytool -exportcert -keystore /path/to/your.keystore -alias <你的 alias> \
+  -storepass <你的密碼> -file cert.der
+```
+
+再用同一份 JBR 的 `java`／`jshell` 對 `cert.der` 的 bytes 做
+`java.util.Arrays.hashCode`，取得的有號 int 轉成十六進位（例如 `-377223519` →
+`0xE98406A1`），就是要填入的值。把它放進根目錄 **`local.properties`**（該檔已被
+git 忽略，每台機器自己維護）：
+
+```properties
+feedSignatureHash=0xE98406A1
+```
+
+然後照第 2 節重新編譯 release 版啟動器即可。
+
+### 方法 B：先裝機看 logcat 回推（事後確認用）
 
 1. 用正式 keystore 簽出 release 版外掛並安裝到裝置上。
 2. 安裝 **release 版**啟動器，開啟它，然後看 logcat：
@@ -138,17 +167,11 @@ adb shell am start -n app.openlauncher.feed/.FeedInfoActivity
    D FeedBridge: Feed provider app.openlauncher.feed(0x1a2b3c4d) isn't whitelisted
    ```
 
-4. 把該值填進 `lawnchair/res/values/bridge.xml`：
+4. 把該值填進 `local.properties` 的 `feedSignatureHash`（同方法 A 最後一步），
+   然後重新編譯 release 版啟動器。
 
-   ```xml
-   <integer name="feed_bridge_signature_hash">0x1A2B3C4D</integer>
-   ```
-
-5. 重新編譯 release 版啟動器。
-
-> 這個「雜湊」是 `android.content.pm.Signature.hashCode()`（也就是憑證 DER bytes 的
-> `Arrays.hashCode`），不是 SHA-256 指紋。用 `apksigner`／`keytool` 看到的指紋**不是**
-> 這個值，一定要從上面的 log 取得。
+> 正式發佈換成真正的 release keystore 簽外掛時，**必須用同一把 keystore 重新算一次
+> 雜湊**並重新注入——debug keystore 算出來的值只對本機測試有效。
 
 ---
 
