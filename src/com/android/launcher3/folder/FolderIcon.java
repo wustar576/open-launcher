@@ -637,9 +637,18 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        boolean shouldCenterIcon = mActivity.getDeviceProfile().iconCenterVertically;
+        DeviceProfile grid = mActivity.getDeviceProfile();
+        // LC-Fix: all-apps drawer folders (container == NO_ID) are stretched to match_parent
+        // height so their row matches app-icon rows (see all_apps_folder_icon.xml /
+        // BaseAllAppsAdapter#onCreateViewHolder). Always vertically center their icon+label
+        // using the all-apps icon size, the same way BubbleTextView centers app icons via
+        // centerVertically="true", instead of only doing so for vertical-bar workspace layouts.
+        boolean isAllAppsFolder = mInfo != null && isInAppDrawer();
+        boolean shouldCenterIcon = isAllAppsFolder || grid.iconCenterVertically;
         if (shouldCenterIcon) {
-            int iconSize = mActivity.getDeviceProfile().iconSizePx;
+            int iconSize = isAllAppsFolder
+                    ? grid.getAllAppsProfile().getIconSizePx()
+                    : grid.iconSizePx;
             Paint.FontMetrics fm = mFolderName.getPaint().getFontMetrics();
             int cellHeightPx = iconSize + mFolderName.getCompoundDrawablePadding()
                     + (int) Math.ceil(fm.bottom - fm.top);

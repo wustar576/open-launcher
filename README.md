@@ -29,7 +29,13 @@ Open Launcher 只提供以下三項功能，其餘一律不在範圍內（例如
 
 新聞頁外掛（`feed/`）是獨立的 Gradle 專案，需另外進入該目錄以其自身的 wrapper 建置，詳見該目錄內的說明。
 
-## 授權
+### 建置注意事項
+
+- **切換分支／合併後請先乾淨建置再裝機**：每次 `git pull`／合併／切換分支之後，若要把 APK 裝到實機測試，請先執行 `./gradlew clean`，或手動刪除 `build/kotlin` 與 `build/intermediates/built_in_kotlinc` 兩個目錄，再重新建置。原因是 Kotlin 的增量編譯（incremental compilation）在切換分支後可能只重新編譯了部分類別，導致產物不同步；曾經實際出現的症狀是安裝後啟動器立即以 `NoSuchFieldError: No field $stable ... BasePreferenceManager$StringPref` 閃退，重新乾淨建置後問題就消失，原始碼本身並沒有問題。
+- **Windows 上的 KSP 「different roots」flake**：在 Windows（尤其專案與使用者暫存目錄不同磁碟機代號時）偶爾會遇到 KSP 回報 "different roots" 的建置失敗，這是已知的環境性偶發問題，並非程式碼錯誤；直接重新執行同一個建置指令即可。也因為如此，**不要**在同一個 session 裡緊接著先跑 spotless 再跑 assemble，以免更容易觸發這個 flake。
+- **快速驗證 APK**：建置完成後，可先用 `unzip -l` 或 Android Studio 的 APK Analyzer 檢查輸出的 `build/outputs/apk/**/*.apk` 內是否包含預期的 `classes*.dex`、資源與 `AndroidManifest.xml`，確認產物不是空的或不完整的；若要更深入確認某個類別是否真的被編譯進去，可選擇性地用 `dexdump`（Android SDK build-tools 內附）對 `classes.dex` 做反組譯抽查，但這一步非必要，多數情況下裝置安裝並實際操作即可驗證。
+
+
 
 本專案整體以 **GPL-3.0-or-later** 授權發佈（因樹內包含數個 GPL-3.0-or-later 檔案，例如抽屜分類所需的 `flowerpot/`）。上游 AOSP Launcher3 與 Lawnchair 的主要部份為 Apache-2.0 授權；相關著作權聲明與授權全文請見 [`LICENSE.txt`](LICENSE.txt) 與 [`NOTICE`](NOTICE)。
 
