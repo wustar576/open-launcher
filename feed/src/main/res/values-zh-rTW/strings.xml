@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Open Launcher Feed</string>
+
+    <string name="info_title">Open Launcher Feed</string>
+    <string name="info_package">套件名稱：%1$s</string>
+    <string name="info_uid">UID：%1$s</string>
+    <string name="info_debuggable">Debuggable：%1$s</string>
+    <string name="info_uri">Overlay URI：%1$s</string>
+    <string name="info_google_app">Google app：%1$s</string>
+    <string name="info_available">可用</string>
+    <string name="info_missing">未安裝或已停用</string>
+    <string name="info_body">這個輔助程式沒有自己的介面，存在的唯一理由是讓 Open Launcher 能顯示 Google Discover 新聞頁：新聞頁服務只接受系統 app 或 debuggable app 當客戶端，而一般安裝的啟動器兩者都不是。\n\n它不要求任何權限、沒有網路存取，也不收集任何資料。</string>
+</resources>

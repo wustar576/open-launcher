@@ -4,11 +4,26 @@ import android.content.ComponentName;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.util.Log;
 
 import amirz.aidlbridge.IBridge;
 import amirz.aidlbridge.IBridgeCallback;
 
+/**
+ * Handles both shapes a feed provider may take (see the spec, section 8.3):
+ *
+ * <ul>
+ *   <li>(A) the service hands back {@code ILauncherOverlay} directly, or</li>
+ *   <li>(B) the service hands back {@code amirz.aidlbridge.IBridge}, we ask it to bind on our
+ *       behalf, and it returns the real overlay binder through {@link IBridgeCallback}.</li>
+ * </ul>
+ *
+ * Note that {@link IBridgeCallback} and {@link ServiceConnection} happen to declare identical
+ * method signatures, so the two methods below serve both roles. Which one is being invoked is
+ * told apart by the interface descriptor of the binder we are handed.
+ */
 public class LauncherClientBridge extends IBridgeCallback.Stub implements ServiceConnection {
+    private static final String TAG = "LauncherClientBridge";
     private static final String INTERFACE_DESCRIPTOR = "amirz.aidlbridge.IBridge";
 
     private final BaseClientService mClientService;
@@ -23,24 +38,28 @@ public class LauncherClientBridge extends IBridgeCallback.Stub implements Servic
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
         try {
-            if (INTERFACE_DESCRIPTOR.equals(service.getInterfaceDescriptor())) {
+            String descriptor = service.getInterfaceDescriptor();
+            if (INTERFACE_DESCRIPTOR.equals(descriptor)) {
+                Log.i(TAG, "bound to bridge " + name + ", asking it to connect on our behalf");
                 IBridge bridge = IBridge.Stub.asInterface(service);
                 try {
                     bridge.bindService(this, mFlags);
                 } catch (RemoteException e) {
-                    e.printStackTrace();
+                    Log.e(TAG, "bridge.bindService failed", e);
                 }
             } else {
+                Log.i(TAG, "got overlay binder from " + name + " (" + descriptor + ")");
                 mClientService.onServiceConnected(name, service);
                 mConnectionName = name;
             }
         } catch (RemoteException e) {
-            e.printStackTrace();
+            Log.e(TAG, "unable to read the interface descriptor of " + name, e);
         }
     }
 
     @Override
     public void onServiceDisconnected(ComponentName name) {
+        Log.i(TAG, "disconnected from " + name);
         if (mConnectionName != null) {
             mClientService.onServiceDisconnected(mConnectionName);
             mConnectionName = null;

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ SPDX-License-Identifier: GPL-3.0-or-later
+  ~ Copyright (C) 2026 Open Launcher contributors
+  -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      提供 Discover 畫面的 Google app。Android 11 起如果不宣告在 <queries> 裡，
+      resolveService() 會看不到它，bindService() 也會失敗。
+    -->
+    <queries>
+        <package android:name="com.google.android.googlequicksearchbox" />
+    </queries>
+
+    <!--
+      刻意「不」宣告任何權限：沒有 INTERNET，沒有任何危險權限。
+      這個 APK 只做一件事：轉接 binder。
+    -->
+
+    <!--
+      android:debuggable="true" 是這個 APK 存在的全部理由，不是忘了關掉的除錯開關。
+
+      Google app 的 overlay service 只接受「系統 app」或「debuggable app」當客戶端。
+      使用者自行安裝的啟動器兩者都不是，所以由這個 debuggable 的小程式代為連線，
+      再把 binder 交還給啟動器（見 docs/specs/open-launcher-spec.md 第 8 節）。
+
+      因此 debug 與 release 兩種 build type 都必須是 debuggable（build.gradle.kts 中
+      兩者都設了 isDebuggable = true；AGP 會以那裡的值覆寫這個屬性，這裡寫出來是為了
+      讓任何人反編譯或閱讀 manifest 時就知道這是刻意的）。
+
+      安全性取捨：debuggable 代表任何持有 adb 的人都能附加到這個程序。因為本程式
+      不持有任何使用者資料、不要求任何權限、也沒有網路存取，風險僅限於「別人可以叫它
+      去綁 Google app」，而那正是它公開提供的功能。
+    -->
+    <application
+        android:allowBackup="false"
+        android:debuggable="true"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:label="@string/app_name"
+        tools:ignore="HardcodedDebugMode">
+
+        <!--
+          啟動器綁定的 service。
+          - exported="true"、不要求權限：啟動器是另一個 app。
+          - intent-filter 只宣告 scheme="app"：啟動器探測與實際綁定用的 data URI
+            host 不同（有時是啟動器套件名+UID，有時只有套件名），限制 host 會讓
+            resolveService() 找不到我們。也不能宣告 mimeType。
+          - service.api.version=7：啟動器會從「實際綁定的套件」讀這個值來決定
+            要走哪一版的協定。
+          - bridge_mode：bridge（設計 B，回傳 amirz.aidlbridge.IBridge）或
+            proxy（設計 A，回傳 ILauncherOverlay 的轉送 Stub）。
+            實機階段可直接改這裡再重裝，不需要改程式碼。
+        -->
+        <service
+            android:name=".OverlayBridgeService"
+            android:directBootAware="false"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="com.android.launcher3.WINDOW_OVERLAY" />
+                <data android:scheme="app" />
+            </intent-filter>
+            <meta-data
+                android:name="service.api.version"
+                android:value="7" />
+            <meta-data
+                android:name="app.openlauncher.feed.bridge_mode"
+                android:value="bridge" />
+        </service>
+
+        <!--
+          說明畫面。MAIN + INFO（不是 LAUNCHER）代表桌面上不會出現圖示，
+          只能從「應用程式資訊」或 adb 開啟。
+        -->
+        <activity
+            android:name=".FeedInfoActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.INFO" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026, Open Launcher contributors
+  ~
+  ~ Strings for the "-1 page" (Google Discover feed) and its companion app.
+  ~ Kept in a separate file so that the feed workstream does not collide with
+  ~ the main strings.xml.
+  -->
+<resources>
+    <string name="feed_requires_companion">Requires Open Launcher Feed</string>
+    <string name="feed_get_companion">Get Open Launcher Feed</string>
+    <string name="feed_get_companion_description">Download the companion app from GitHub Releases</string>
+    <string name="feed_releases_url" translatable="false">https://github.com/wustar576/open-launcher/releases</string>
+</resources>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   ~ Copyright 2021, Lawnchair
+  ~ Copyright 2026, Open Launcher contributors
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -16,7 +17,15 @@
   -->
 
 <resources>
-    <integer name="bridge_signature_hash">0xB662CC2F</integer>
-    <string name="bridge_version" translatable="false">v3</string>
-    <integer name="lawnfeed_signature_hash">0x60E8FB7D</integer>
+    <!--
+      Open Launcher Feed（app.openlauncher.feed）release 簽章的雜湊值。
+
+      0x0 是「尚未填入」的佔位值：
+      - debug build 完全不驗簽章，所以用 debug keystore 簽的外掛可以直接使用。
+      - release build 會拒絕外掛並在 logcat（tag FeedBridge）印出實際的雜湊值。
+
+      發佈前請依 feed/README.md 的「取得 release 簽章雜湊」章節，把這裡換成
+      正式 keystore 簽出來的值。
+    -->
+    <integer name="feed_bridge_signature_hash">0x0</integer>
 </resources>

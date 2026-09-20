@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026, Open Launcher contributors
+  -->
+<resources>
+    <string name="feed_requires_companion">需要安裝 Open Launcher Feed</string>
+    <string name="feed_get_companion">取得 Open Launcher Feed</string>
+    <string name="feed_get_companion_description">從 GitHub Releases 下載外掛程式</string>
+</resources>

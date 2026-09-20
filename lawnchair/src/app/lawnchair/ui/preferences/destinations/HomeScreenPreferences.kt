@@ -33,6 +33,7 @@ import app.lawnchair.preferences.preferenceManager
 import app.lawnchair.preferences2.preferenceManager2
 import app.lawnchair.theme.color.ColorMode
 import app.lawnchair.ui.preferences.LocalIsExpandedScreen
+import app.lawnchair.ui.preferences.components.FeedCompanionMissingPreference
 import app.lawnchair.ui.preferences.components.FeedPreference
 import app.lawnchair.ui.preferences.components.GestureHandlerPreference
 import app.lawnchair.ui.preferences.components.HomeLayoutSettings
@@ -113,14 +114,21 @@ fun HomeScreenPreferences(
             )
         }
         val feedAvailable = OverlayCallbackImpl.minusOneAvailable(LocalContext.current)
+        val feedCompanionInstalled = OverlayCallbackImpl.companionInstalled(LocalContext.current)
         val enableFeedAdapter = prefs2.enableFeed.getAdapter()
         PreferenceGroup(heading = stringResource(id = R.string.minus_one)) {
             SwitchPreference(
                 adapter = enableFeedAdapter,
                 label = stringResource(id = R.string.minus_one_enable),
-                description = if (feedAvailable) null else stringResource(id = R.string.minus_one_unavailable),
+                // 沒有外掛就沒有新聞頁：開關停用，並說明要裝什麼。
+                description = if (feedAvailable) null else stringResource(id = R.string.feed_requires_companion),
                 enabled = feedAvailable,
             )
+            // 外掛沒裝就給一個下載入口。系統／debuggable 版啟動器即使沒有外掛也能
+            // 直連 Google app（開關不會停用），但外掛仍是官方支援的路徑，所以照樣顯示。
+            if (!feedCompanionInstalled) {
+                FeedCompanionMissingPreference()
+            }
             ExpandAndShrink(visible = feedAvailable && enableFeedAdapter.state.value) {
                 FeedPreference()
             }

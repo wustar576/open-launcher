@@ -28,6 +28,8 @@ import app.lawnchair.FeedBridge.BridgeInfo;
 import java.lang.ref.WeakReference;
 
 public class LauncherClient {
+    private static final String TAG = "LauncherClient";
+
     private static int apiVersion = -1;
 
     private ILauncherOverlay mOverlay;
@@ -36,9 +38,15 @@ public class LauncherClient {
     public final BaseClientService mBaseService;
     public final LauncherClientService mLauncherService;
 
+    /**
+     * Reconnects when either the feed companion app or the Google app is installed, updated or
+     * removed. Without watching the companion package, installing Open Launcher Feed while the
+     * launcher is already running would leave the feed dead until the launcher process restarts.
+     */
     public final BroadcastReceiver googleInstallListener = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            Log.i(TAG, "feed provider package changed: " + intent.getAction() + " " + intent.getData());
             reconnect();
         }
     };
@@ -130,8 +138,11 @@ public class LauncherClient {
         mOverlay = mLauncherService.mOverlay;
 
         IntentFilter intentFilter = new IntentFilter(Intent.ACTION_PACKAGE_ADDED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         intentFilter.addDataScheme("package");
-        intentFilter.addDataSchemeSpecificPart("com.google.android.googlequicksearchbox", 0);
+        intentFilter.addDataSchemeSpecificPart(FeedBridge.GOOGLE_APP_PACKAGE, 0);
+        intentFilter.addDataSchemeSpecificPart(FeedBridge.FEED_PACKAGE, 0);
         mActivity.registerReceiver(googleInstallListener, intentFilter);
 
         if (apiVersion <= 0) {
@@ -199,9 +210,7 @@ public class LauncherClient {
     }
 
     public final void onStart() {
-        Log.i("FEED", "1");
         if (!mDestroyed) {
-            Log.i("FEED", "2");
             mLauncherService.setStopped(false);
             connect();
             mActivityState |= 1;
@@ -383,7 +392,7 @@ public class LauncherClient {
             try {
                 return mOverlay.startSearch(bArr, bundle);
             } catch (Throwable e) {
-                Log.e("DrawerOverlayClient", "Error starting session for search", e);
+                Log.e(TAG, "Error starting session for search", e);
             }
         }
         return false;
@@ -422,7 +431,7 @@ public class LauncherClient {
         BridgeInfo bridgeInfo = proxy ? FeedBridge.Companion.getInstance(context).resolveBridge() : null;
         String pkg = context.getPackageName();
         return new Intent("com.android.launcher3.WINDOW_OVERLAY")
-                .setPackage(bridgeInfo != null ? bridgeInfo.getPackageName() : "com.google.android.googlequicksearchbox")
+                .setPackage(bridgeInfo != null ? bridgeInfo.getPackageName() : FeedBridge.GOOGLE_APP_PACKAGE)
                 .setData(Uri.parse("app://" +
                                 pkg +
                                 ":" +
@@ -433,10 +442,21 @@ public class LauncherClient {
                         .build());
     }
 
+    /**
+     * Reads {@code service.api.version} from the package we are actually going to bind to.
+     * <p>
+     * This used to always resolve against the Google app, which is wrong when a bridge is in
+     * play: the launcher would negotiate whatever protocol version the Google app advertises,
+     * even though every call goes through the bridge. Open Launcher Feed declares 7.
+     */
     private static void loadApiVersion(Context context) {
-        ResolveInfo resolveService = context.getPackageManager().resolveService(getIntent(context, false), PackageManager.GET_META_DATA);
+        Intent intent = getIntent(context, FeedBridge.useBridge(context));
+        ResolveInfo resolveService = context.getPackageManager()
+                .resolveService(intent, PackageManager.GET_META_DATA);
         apiVersion = resolveService == null || resolveService.serviceInfo.metaData == null ?
                 1 :
                 resolveService.serviceInfo.metaData.getInt("service.api.version", 1);
+        Log.i(TAG, "overlay api version " + apiVersion + " from " + intent.getPackage()
+                + (resolveService == null ? " (service not found)" : ""));
     }
 }
