@@ -47,6 +47,13 @@
         <!--
         Main launcher activity. When extending only change the name, and keep all the
         attributes and intent filters the same
+
+        Open Launcher-note: the LAUNCHER category is intentionally NOT on this filter. This
+        activity is the home screen, not the app-drawer entry point for "Open Launcher" -
+        tapping the app icon is handled by app.lawnchair.LauncherEntryActivity (declared in
+        lawnchair/AndroidManifest.xml), a trampoline that decides between opening this activity
+        (as HOME, same as before) or Settings. Explicit component starts (e.g. `adb shell am
+        start -n .../app.lawnchair.LawnchairLauncher`) are unaffected since this stays exported.
         -->
         <activity
             android:name="app.lawnchair.LawnchairLauncher"
@@ -69,7 +76,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.MONKEY"/>
                 <category android:name="android.intent.category.LAUNCHER_APP" />
-                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <meta-data
                 android:name="com.android.launcher3.grid.control"

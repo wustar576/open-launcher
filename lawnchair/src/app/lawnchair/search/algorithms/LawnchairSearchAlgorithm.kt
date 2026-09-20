@@ -13,7 +13,6 @@ import com.android.app.search.LayoutType.ICON_HORIZONTAL_TEXT
 import com.android.app.search.LayoutType.ICON_SINGLE_VERTICAL_TEXT
 import com.android.app.search.LayoutType.SMALL_ICON_HORIZONTAL_TEXT
 import com.android.app.search.LayoutType.TEXT_HEADER
-import com.android.launcher3.BuildConfig
 import com.android.launcher3.allapps.BaseAllAppsAdapter
 import com.android.launcher3.search.SearchAlgorithm
 import com.android.launcher3.search.SearchCallback
@@ -54,9 +53,11 @@ sealed class LawnchairSearchAlgorithm(
     )
 
     protected fun transformSearchResults(results: List<SearchTargetCompat>): List<SearchAdapterItem> {
+        // Open Launcher's own entry (LauncherEntryActivity) is intentionally NOT filtered out of
+        // search results here: from within our own drawer it is the shortcut to Settings, so it
+        // must be searchable like any other app.
         val filtered = results
             .asSequence()
-            .filter { it.packageName != BuildConfig.APPLICATION_ID }
             .filter { LawnchairSearchAdapterProvider.viewTypeMap[it.layoutType] != null }
             .removeDuplicateDividers()
             .toList()
