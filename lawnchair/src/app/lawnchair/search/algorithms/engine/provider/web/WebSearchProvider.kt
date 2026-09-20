@@ -3,10 +3,16 @@ package app.lawnchair.search.algorithms.engine.provider.web
 import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import kotlinx.coroutines.flow.Flow
 
 /**
- * A clean interface for any provider that can fetch web search suggestions.
+ * Describes a web search engine.
+ *
+ * NOTE: Open Launcher does not search the web. Nothing in the launcher calls [getSearchUrl] any
+ * more — this type only survives because the preference store
+ * (`PreferenceManager2.webSuggestionProvider`) and the search settings screens, both owned by
+ * another work stream, still reference it. Once those are removed this whole package can go.
+ * The suggestion-fetching part of the interface (and all of its Retrofit/OkHttp machinery) has
+ * already been deleted, so no implementation can make a network request.
  */
 interface WebSearchProvider {
 
@@ -30,18 +36,7 @@ interface WebSearchProvider {
     fun configure(context: Context): WebSearchProvider = this
 
     /**
-     * Fetches search suggestions for the given query.
-     *
-     * @param query The user's search query.
-     * @return A Flow that emits a list of suggestion strings.
-     */
-    fun getSuggestions(query: String): Flow<List<String>>
-
-    /**
      * Constructs the final search URL for a given query.
-     *
-     * @param query The user's search query.
-     * @return The fully-formed URL string to open in a browser.
      */
     fun getSearchUrl(query: String): String
 
@@ -51,18 +46,11 @@ interface WebSearchProvider {
         fun values(): List<WebSearchProvider> = listOf(
             GoogleWebSearchProvider,
             DuckDuckGoWebSearchProvider,
-            StartPageWebSearchProvider,
-            StartPageEUWebSearchProvider,
-            KagiWebSearchProvider,
             CustomWebSearchProvider,
         )
 
         fun fromString(value: String): WebSearchProvider = when (value) {
-            "google" -> GoogleWebSearchProvider
             "duckduckgo" -> DuckDuckGoWebSearchProvider
-            "startpage" -> StartPageWebSearchProvider
-            "startpage-eu" -> StartPageEUWebSearchProvider
-            "kagi" -> KagiWebSearchProvider
             "custom" -> CustomWebSearchProvider
             else -> GoogleWebSearchProvider
         }

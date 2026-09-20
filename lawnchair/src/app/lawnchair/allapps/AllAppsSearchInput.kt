@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Rect
-import android.provider.SearchRecentSuggestions
 import android.text.Selection
 import android.text.SpannableStringBuilder
 import android.text.Spanned.SPAN_POINT_MARK
@@ -51,7 +50,6 @@ import app.lawnchair.qsb.buildQsbStyle
 import app.lawnchair.qsb.providers.Google
 import app.lawnchair.qsb.providers.PixelSearch
 import app.lawnchair.qsb.rememberAllAppsQsbState
-import app.lawnchair.search.LawnchairRecentSuggestionProvider
 import app.lawnchair.search.algorithms.LawnchairSearchAlgorithm
 import app.lawnchair.theme.color.tokens.ColorTokens
 import app.lawnchair.ui.theme.LawnchairTheme
@@ -112,7 +110,6 @@ class AllAppsSearchInput(context: Context, attrs: AttributeSet?) :
     }
     private var bgVisible = true
     private var bgAlpha = 1f
-    private val suggestionsRecent = SearchRecentSuggestions(launcher, LawnchairRecentSuggestionProvider.AUTHORITY, LawnchairRecentSuggestionProvider.MODE)
     private val prefs = PreferenceManager.getInstance(launcher)
     private val prefs2 = PreferenceManager2.getInstance(launcher)
 
@@ -274,11 +271,7 @@ class AllAppsSearchInput(context: Context, attrs: AttributeSet?) :
 
         input.onFocusChangeListener = { _, hasFocus ->
             if (hasFocus) {
-                if (prefs2.searchAlgorithm.firstCached() != LawnchairSearchAlgorithm.APP_SEARCH) {
-                    input.setHint(R.string.all_apps_device_search_hint)
-                } else {
-                    input.setHint(R.string.all_apps_search_bar_hint)
-                }
+                input.setHint(R.string.all_apps_search_bar_hint)
 
                 if (input.text.toString().isEmpty() && isDirectFocus) {
                     searchAlgorithm?.doZeroStateSearch(this)
@@ -291,11 +284,6 @@ class AllAppsSearchInput(context: Context, attrs: AttributeSet?) :
             } else {
                 setBackgroundVisibility(true, 1f)
                 animateHintVisibility(false)
-                if (prefs.searchResulRecentSuggestion.get()) {
-                    val query = editText.text.toString()
-                    suggestionsRecent.saveRecentQuery(query, null)
-                }
-
                 if (input.text.isNullOrEmpty()) {
                     animatePadding(currentPaddingLeft, currentPaddingRight)
                 }
