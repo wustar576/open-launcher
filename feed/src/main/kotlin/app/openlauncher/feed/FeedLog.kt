@@ -10,7 +10,7 @@ import android.util.Log
 /**
  * 統一的 log tag。實機除錯時用：
  *
- *   adb logcat -s OLFeed.Service OLFeed.Upstream OLFeed.Bridge OLFeed.Proxy OLFeed.Info
+ *   adb logcat -s OLFeed.Service OLFeed.Upstream OLFeed.Bridge OLFeed.Proxy OLFeed.Callback OLFeed.Info
  *
  * （Android 的 tag 上限是 23 個字元，以下都在範圍內。）
  */
@@ -19,6 +19,9 @@ object FeedLog {
     const val UPSTREAM = "OLFeed.Upstream"
     const val BRIDGE = "OLFeed.Bridge"
     const val PROXY = "OLFeed.Proxy"
+
+    /** Google app 打回啟動器的 `ILauncherOverlayCallback`，外掛在中間記一行。 */
+    const val CALLBACK = "OLFeed.Callback"
     const val INFO = "OLFeed.Info"
 
     fun d(tag: String, message: String) = Log.d(tag, message)

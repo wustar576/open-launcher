@@ -71,14 +71,25 @@ class OverlayBridgeService : Service() {
     override fun onUnbind(intent: Intent): Boolean {
         FeedLog.i(FeedLog.SERVICE, "onUnbind: data=${intent.data}, releasing upstream")
         bridgeBinder?.releaseAll()
-        overlayProxy?.let { proxy -> handler.post { connector.detach(proxy) } }
+        overlayProxy?.let { proxy ->
+            handler.post {
+                // 順序很重要：一定要在 unbind 之前把啟動器的 window token 還給 Google app，
+                // 否則下一個提供者拿同一個 token 來 attach 時會被無視（見 LauncherOverlayProxy）。
+                proxy.releaseWindow()
+                connector.detach(proxy)
+            }
+        }
         // 回傳 true 才會在下次綁定時收到 onRebind。
         return true
     }
 
     override fun onDestroy() {
         FeedLog.i(FeedLog.SERVICE, "onDestroy")
-        handler.post { connector.detachAll() }
+        val proxy = overlayProxy
+        handler.post {
+            proxy?.releaseWindow()
+            connector.detachAll()
+        }
         super.onDestroy()
     }
 

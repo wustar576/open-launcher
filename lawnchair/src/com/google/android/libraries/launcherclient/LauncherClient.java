@@ -260,13 +260,59 @@ public class LauncherClient {
         }
     }
 
+    /**
+     * Switches to whatever feed provider is configured right now.
+     * <p>
+     * LC-Fix: this used to drop the service bindings and nothing else, which broke every
+     * <em>runtime</em> provider switch (Settings &rarr; Home &rarr; Feed provider):
+     * <ol>
+     *   <li>The previous provider was never told {@link ILauncherOverlay#windowDetached} before
+     *       we unbound, so it kept our window token attached. {@code unbindService()} does not
+     *       deliver {@code onServiceDisconnected()}, so nothing else would have told it either.
+     *       When the next provider then attached the very same token, the Google app had it
+     *       twice over and stayed silent - no {@code overlayStatusChanged}, dead feed.</li>
+     *   <li>{@link #mOverlay} kept pointing at the now-unbound binder of the old provider.</li>
+     *   <li>{@link #mServiceState} kept the old provider's status (e.g. {@code 0x19}), so when
+     *       the new provider reported the identical status {@link #setServiceState(int)} saw no
+     *       change and swallowed it - both the callback and the log line.</li>
+     * </ol>
+     */
     public void reconnect() {
+        Log.i(TAG, "reconnect: releasing the current overlay before re-binding");
+        detachOverlay();
         mBaseService.disconnect();
         mLauncherService.disconnect();
         LauncherClient.loadApiVersion(mActivity);
         if ((mActivityState & 2) != 0) {
             connect();
         }
+    }
+
+    /**
+     * Hands our window back to the overlay we are currently attached to and forgets every piece
+     * of state that belongs to it, so that the next provider starts from a clean slate.
+     */
+    private void detachOverlay() {
+        ILauncherOverlay overlay = mOverlay;
+        mOverlay = null;
+        if (overlay != null) {
+            try {
+                overlay.windowDetached(mActivity.isChangingConfigurations());
+                Log.i(TAG, "windowDetached sent to the previous overlay");
+            } catch (RemoteException e) {
+                Log.w(TAG, "windowDetached failed on the previous overlay", e);
+            }
+        }
+        // A fresh callback binder per attach cycle: the provider keys its session on the binder
+        // it was handed, and reusing the old one lets a stale session shadow the new one.
+        if (mOverlayCallback != null) {
+            mOverlayCallback.destroy();
+            mOverlayCallback = null;
+        }
+        // The new provider has to report its own status. Without this reset an identical status
+        // would be deduplicated away by setServiceState() and we would keep forwarding scroll
+        // events to a provider that never acknowledged us.
+        setServiceState(0);
     }
 
     public final void setLayoutParams(LayoutParams layoutParams) {
@@ -432,6 +478,11 @@ public class LauncherClient {
                     + " (scroll events " + (((serviceState & 1) != 0) ? "accepted)" : "dropped)"));
             mServiceState = serviceState;
             mScrollCallback.onServiceStateChanged((serviceState & 1) != 0);
+        } else {
+            // LC-Diag: without this line an overlay that answers with the status we already have
+            // is indistinguishable from an overlay that never answers at all, which is exactly
+            // the confusion that hid the provider-switch bug.
+            Log.i(TAG, "overlay status unchanged: 0x" + Integer.toHexString(serviceState));
         }
     }
 

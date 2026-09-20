@@ -24,68 +24,152 @@ import com.google.android.libraries.launcherclient.ILauncherOverlayCallback
  * 代價：每個呼叫多一次 IPC（捲動事件是 oneway，但頻率高），以及必須自己把
  * `windowAttached*` 的內容暫存起來，等上游連上後補送。
  *
- * `ILauncherOverlayCallback` 直接原封不動轉交給 Google app（binder 可以跨程序傳遞），
- * 所以 Google 的 `overlayScrollChanged` / `overlayStatusChanged` 是直接打回啟動器，
- * 不經過外掛，少一跳。
+ * ## window token 的歸屬（2026-09-20 的 bug）
+ *
+ * `windowAttached2` 帶的是**啟動器的 window token**。Google app 會把 Discover 視窗掛在
+ * 那個 token 底下，而且顯然不接受同一個 token 同時被兩個 session 認領：只要前一個
+ * session 沒有收到 `windowDetached`，下一個 session 的 attach 就會被無視——永遠等不到
+ * `overlayStatusChanged`，新聞頁一片空白。因此：
+ *
+ * - 啟動器 unbind（切換提供者、外掛被移除）時，[releaseWindow] 會在斷線**之前**補送
+ *   `windowDetached`，把 token 還回去；
+ * - [WindowAttachState] 保證同一個 attach 不會重複送給同一個上游 binder。
+ *
+ * ## callback 為什麼要包一層
+ *
+ * `ILauncherOverlayCallback` 原本是直接把啟動器的 binder 原封不動轉交給 Google app，
+ * 少一跳 IPC。但這樣一來，「Google app 到底有沒有回報 `overlayStatusChanged`」在外掛這端
+ * 完全看不見，實機除錯時只能用猜的。現在改成包一層 [CallbackRelay]：多一次 oneway IPC
+ * （捲動期間每幀一次，Pixel 10 實測感覺不出來），換到的是一行決定性的 log，而且上游掛掉時
+ * 外掛可以主動送 `overlayStatusChanged(0)` 給啟動器，讓它停止把捲動事件丟進黑洞。
  */
 class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Listener {
 
-    @Volatile
+    /** 保護 [remote] / [attachState] / [pendingActivityState]：binder 執行緒與主執行緒都會碰。 */
+    private val lock = Any()
+
     private var remote: ILauncherOverlay? = null
 
-    /** 上游還沒連上時收到的 windowAttached/windowAttached2，連上後補送。 */
-    @Volatile
-    private var pendingAttach: PendingAttach? = null
+    private val attachState = WindowAttachState<PendingAttach, ILauncherOverlay>()
 
-    @Volatile
     private var pendingActivityState: Int? = null
 
-    private sealed interface PendingAttach {
-        data class Legacy(
-            val lp: WindowManager.LayoutParams?,
-            val cb: ILauncherOverlayCallback?,
-            val flags: Int,
-        ) : PendingAttach
+    /**
+     * 一次 `windowAttached*` 的全部內容。
+     *
+     * @param launcherCallback 啟動器給的 callback binder，外掛要直接通知它時用。
+     * @param deliver 把這次 attach 送給某個上游 binder。
+     */
+    private class PendingAttach(
+        val name: String,
+        val launcherCallback: ILauncherOverlayCallback?,
+        val deliver: (ILauncherOverlay) -> Unit,
+    )
 
-        data class Modern(
-            val bundle: Bundle?,
-            val cb: ILauncherOverlayCallback?,
-        ) : PendingAttach
+    /**
+     * 夾在 Google app 與啟動器之間的 callback。只做兩件事：記一行 log、原樣轉送。
+     */
+    private class CallbackRelay(
+        private val target: ILauncherOverlayCallback,
+    ) : ILauncherOverlayCallback.Stub() {
+
+        @Volatile
+        private var loggedScroll = false
+
+        override fun overlayScrollChanged(progress: Float) {
+            if (!loggedScroll) {
+                loggedScroll = true
+                FeedLog.i(FeedLog.CALLBACK, "first overlayScrollChanged($progress) from the Google app")
+            }
+            try {
+                target.overlayScrollChanged(progress)
+            } catch (e: RemoteException) {
+                FeedLog.w(FeedLog.CALLBACK, "overlayScrollChanged could not reach the launcher", e)
+            }
+        }
+
+        override fun overlayStatusChanged(status: Int) {
+            FeedLog.i(
+                FeedLog.CALLBACK,
+                "overlayStatusChanged(0x${Integer.toHexString(status)}) from the Google app" +
+                    " -> launcher (scroll events ${if (status and 1 != 0) "accepted" else "dropped"})",
+            )
+            try {
+                target.overlayStatusChanged(status)
+            } catch (e: RemoteException) {
+                FeedLog.w(FeedLog.CALLBACK, "overlayStatusChanged could not reach the launcher", e)
+            }
+        }
     }
 
     // region GoogleOverlayConnector.Listener
 
     override fun onUpstreamConnected(component: ComponentName, binder: IBinder) {
         val overlay = ILauncherOverlay.Stub.asInterface(binder)
-        remote = overlay
-        FeedLog.i(FeedLog.PROXY, "upstream ready ($component), replaying pending state")
-        val attach = pendingAttach
-        if (attach != null) {
-            forward("replay windowAttached") {
-                when (attach) {
-                    is PendingAttach.Legacy -> it.windowAttached(attach.lp, attach.cb, attach.flags)
-                    is PendingAttach.Modern -> it.windowAttached2(attach.bundle, attach.cb)
-                }
-            }
+        val replay: PendingAttach?
+        val activityState: Int?
+        synchronized(lock) {
+            remote = overlay
+            replay = attachState.onUpstreamConnected(overlay)
+            activityState = pendingActivityState
         }
-        pendingActivityState?.let { state ->
-            forward("replay setActivityState") { it.setActivityState(state) }
+        FeedLog.i(
+            FeedLog.PROXY,
+            "upstream ready ($component), replaying ${replay?.name ?: "nothing"}",
+        )
+        replay?.let { attach -> forwardTo(overlay, "replay ${attach.name}") { attach.deliver(it) } }
+        activityState?.let { state ->
+            forwardTo(overlay, "replay setActivityState") { it.setActivityState(state) }
         }
     }
 
     override fun onUpstreamDisconnected(component: ComponentName?) {
         FeedLog.w(FeedLog.PROXY, "upstream gone ($component); calls will be dropped until it returns")
-        remote = null
+        onUpstreamLost()
     }
 
     override fun onUpstreamUnavailable(reason: String) {
         FeedLog.e(FeedLog.PROXY, "upstream unavailable: $reason")
-        remote = null
+        onUpstreamLost()
+    }
+
+    private fun onUpstreamLost() {
+        val callback = synchronized(lock) {
+            remote = null
+            attachState.onUpstreamLost()
+            attachState.pending?.launcherCallback
+        }
+        // 主動告訴啟動器「捲動事件現在沒人收」，它才不會把事件丟進黑洞；也讓上游回來後
+        // 那個 0x19 對啟動器而言是真正的狀態變化（否則會被 setServiceState 的去重吃掉）。
+        if (callback != null) {
+            FeedLog.i(FeedLog.PROXY, "telling the launcher the overlay is detached (status 0)")
+            try {
+                callback.overlayStatusChanged(0)
+            } catch (e: RemoteException) {
+                FeedLog.w(FeedLog.PROXY, "could not tell the launcher about the lost upstream", e)
+            }
+        }
     }
 
     override fun toString(): String = "LauncherOverlayProxy"
 
     // endregion
+
+    /**
+     * 啟動器的綁定結束了（切換提供者、外掛被停用、service 被銷毀）。
+     *
+     * **必須在 unbind 上游之前呼叫。** 把啟動器的 window token 還給 Google app，否則下一個
+     * 提供者（可能是啟動器自己直連 Google app）再拿同一個 token 來 attach 時會被無視。
+     */
+    fun releaseWindow() {
+        val released = synchronized(lock) { attachState.onDetach() }
+        if (released == null) {
+            FeedLog.i(FeedLog.PROXY, "releaseWindow: nothing was attached")
+            return
+        }
+        FeedLog.i(FeedLog.PROXY, "releaseWindow: handing the launcher window back to the Google app")
+        forward("windowDetached(release)") { it.windowDetached(false) }
+    }
 
     // region ILauncherOverlay - 順序與 AIDL 宣告一致（交易碼 1..17）
 
@@ -104,14 +188,16 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
         cb: ILauncherOverlayCallback?,
         flags: Int,
     ) {
-        pendingAttach = PendingAttach.Legacy(lp, cb, flags)
-        FeedLog.i(FeedLog.PROXY, "windowAttached(flags=$flags)")
-        forward("windowAttached") { it.windowAttached(lp, cb, flags) }
+        val relay = cb?.let { CallbackRelay(it) }
+        attach(
+            PendingAttach("windowAttached", cb) { it.windowAttached(lp, relay, flags) },
+            "windowAttached(flags=$flags)",
+        )
     }
 
     // 5
     override fun windowDetached(isChangingConfigurations: Boolean) {
-        pendingAttach = null
+        synchronized(lock) { attachState.onDetach() }
         FeedLog.i(FeedLog.PROXY, "windowDetached(changingConfigurations=$isChangingConfigurations)")
         forward("windowDetached") { it.windowDetached(isChangingConfigurations) }
     }
@@ -146,9 +232,12 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
 
     // 14
     override fun windowAttached2(bundle: Bundle?, cb: ILauncherOverlayCallback?) {
-        pendingAttach = PendingAttach.Modern(bundle, cb)
-        FeedLog.i(FeedLog.PROXY, "windowAttached2(keys=${runCatching { bundle?.keySet() }.getOrNull()})")
-        forward("windowAttached2") { it.windowAttached2(bundle, cb) }
+        val relay = cb?.let { CallbackRelay(it) }
+        val keys = runCatching { bundle?.keySet() }.getOrNull()
+        attach(
+            PendingAttach("windowAttached2", cb) { it.windowAttached2(bundle, relay) },
+            "windowAttached2(keys=$keys)",
+        )
     }
 
     // 15 - 協定中的佔位方法，必須存在才能讓後面的交易碼對齊。
@@ -156,7 +245,7 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
 
     // 16
     override fun setActivityState(flags: Int) {
-        pendingActivityState = flags
+        synchronized(lock) { pendingActivityState = flags }
         forward("setActivityState") { it.setActivityState(flags) }
     }
 
@@ -166,8 +255,24 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
 
     // endregion
 
+    /** `windowAttached` / `windowAttached2` 共用：記住這次 attach，能送就馬上送。 */
+    private fun attach(pending: PendingAttach, description: String) {
+        val target = synchronized(lock) {
+            val current = remote
+            attachState.onAttach(pending, current)
+            current
+        }
+        FeedLog.i(
+            FeedLog.PROXY,
+            "$description -> ${if (target != null) "forwarding now" else "deferred, upstream not ready"}",
+        )
+        if (target != null) {
+            forwardTo(target, pending.name) { pending.deliver(it) }
+        }
+    }
+
     private inline fun forward(name: String, block: (ILauncherOverlay) -> Unit) {
-        val overlay = remote
+        val overlay = synchronized(lock) { remote }
         if (overlay == null) {
             FeedLog.d(FeedLog.PROXY, "dropping $name: upstream not connected")
             return
@@ -175,8 +280,30 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
         try {
             block(overlay)
         } catch (e: RemoteException) {
-            FeedLog.w(FeedLog.PROXY, "$name failed", e)
-            remote = null
+            onForwardFailed(overlay, name, e)
+        }
+    }
+
+    /** attach／replay 專用（頻率低，不必 inline）。 */
+    private fun forwardTo(
+        overlay: ILauncherOverlay,
+        name: String,
+        block: (ILauncherOverlay) -> Unit,
+    ) {
+        try {
+            block(overlay)
+        } catch (e: RemoteException) {
+            onForwardFailed(overlay, name, e)
+        }
+    }
+
+    private fun onForwardFailed(overlay: ILauncherOverlay, name: String, e: RemoteException) {
+        FeedLog.w(FeedLog.PROXY, "$name failed", e)
+        synchronized(lock) {
+            if (remote === overlay) {
+                remote = null
+                attachState.onUpstreamLost()
+            }
         }
     }
 
@@ -185,7 +312,7 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
         fallback: T,
         block: (ILauncherOverlay) -> T,
     ): T {
-        val overlay = remote
+        val overlay = synchronized(lock) { remote }
         if (overlay == null) {
             FeedLog.d(FeedLog.PROXY, "answering $name with $fallback: upstream not connected")
             return fallback
@@ -193,8 +320,7 @@ class LauncherOverlayProxy : ILauncherOverlay.Stub(), GoogleOverlayConnector.Lis
         return try {
             block(overlay)
         } catch (e: RemoteException) {
-            FeedLog.w(FeedLog.PROXY, "$name failed", e)
-            remote = null
+            onForwardFailed(overlay, name, e)
             fallback
         }
     }

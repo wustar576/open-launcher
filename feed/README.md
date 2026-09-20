@@ -277,6 +277,44 @@ adb shell pm disable-user --user 0 com.google.android.googlequicksearchbox
 
 ---
 
+### 4.9 執行中切換提供者（2026-09-20 修掉的 bug）
+
+「設定 → 主畫面 → 新聞頁 → 提供者」可以在啟動器**還活著的時候**改掉。這條路徑原本是壞的：
+
+- 舊的 `LauncherClient.reconnect()` 只做 `unbindService`，**沒有先送 `windowDetached`**。
+  `unbindService()` 不會觸發 `onServiceDisconnected()`，所以前一個提供者完全不知道自己
+  該放手，Google app 那邊還記著啟動器的 window token。
+- `windowAttached2` 帶的就是那個 token。下一個提供者拿同一個 token 來 attach，Google app
+  就當作沒看到——**永遠不回報 `overlayStatusChanged`**，向右滑一片空白。
+- 雪上加霜：`mServiceState` 也沒有歸零，所以就算 Google app 回了一模一樣的 `0x19`，
+  `setServiceState()` 的「沒變就不處理」也會把它連同那行 log 一起吃掉。
+
+現在 `reconnect()` 會依序：送 `windowDetached` → 丟掉舊的 callback binder → `setServiceState(0)`
+→ unbind → 重新解析 API 版本 → 重綁。外掛這端則在 `onUnbind` 時先呼叫
+`LauncherOverlayProxy.releaseWindow()`，把 token 還給 Google app 之後才斷線。
+
+測試（兩個方向都要做）：
+
+1. 設定 → 新聞頁 → 提供者選「Google」，回桌面向右滑，確認看得到 Discover。
+2. 回設定改選「Open Launcher Feed」，回桌面向右滑。
+3. 再改回「Google」，回桌面向右滑。
+
+每一次都應該出現：
+
+```
+I LauncherClient:  reconnect: releasing the current overlay before re-binding
+I LauncherClient:  windowDetached sent to the previous overlay
+I LauncherClient:  overlay status changed: 0x0 (scroll events dropped)
+I LauncherClient:  bindService(<新的提供者>, ...) = true
+I LauncherClient:  windowAttached2 sent (api …, flags 15), waiting for overlayStatusChanged
+I OLFeed.Callback: overlayStatusChanged(0x19) from the Google app -> launcher (scroll events accepted)   ← 只有走外掛時
+I LauncherClient:  overlay status changed: 0x19 (scroll events accepted)
+```
+
+`OLFeed.Callback` 這個 tag 是新加的：外掛現在把 `ILauncherOverlayCallback` 包一層再交給
+Google app，代價是捲動回呼多一跳 oneway IPC，換到的是「Google app 到底有沒有回話」這件事
+從此看得見。
+
 ## 5. 已知風險
 
 1. ~~**(B) bridge 模式的身分問題**~~ → **已實機證實會失敗**（2026-09-20，Pixel 10 /

@@ -86,7 +86,39 @@ class ConnectionStateMachineTest {
         machine.attach(clientA)
         val effect = machine.detach("someone else")
         assertNull(effect.command)
+        assertTrue(effect.notifyDisconnected.isEmpty())
         assertEquals(1, machine.clients.size)
+    }
+
+    @Test
+    fun `a detached client is told the upstream is gone`() {
+        machine.attach(clientA)
+        machine.onUpstreamConnected()
+        val effect = machine.detach(clientA)
+        assertEquals(UpstreamCommand.UNBIND, effect.command)
+        // 沒有這一步，客戶端會抱著一個已經 unbind 的 binder 繼續轉送。
+        assertEquals(listOf(clientA), effect.notifyDisconnected)
+    }
+
+    @Test
+    fun `a detached client is told even while others stay attached`() {
+        machine.attach(clientA)
+        machine.attach(clientB)
+        machine.onUpstreamConnected()
+        val effect = machine.detach(clientA)
+        assertNull(effect.command)
+        assertEquals(listOf(clientA), effect.notifyDisconnected)
+        assertEquals(UpstreamState.CONNECTED, machine.state)
+    }
+
+    @Test
+    fun `detachAll tells every client the upstream is gone`() {
+        machine.attach(clientA)
+        machine.attach(clientB)
+        machine.onUpstreamConnected()
+        val effect = machine.detachAll()
+        assertEquals(listOf(clientA, clientB), effect.notifyDisconnected)
+        assertTrue(machine.detachAll().notifyDisconnected.isEmpty())
     }
 
     @Test

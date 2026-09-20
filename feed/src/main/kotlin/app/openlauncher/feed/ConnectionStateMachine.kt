@@ -85,19 +85,26 @@ class ConnectionStateMachine<C : Any> {
         }
     }
 
-    /** 客戶端離開（unbind、process 死亡、或 service onUnbind）。 */
+    /**
+     * 客戶端離開（unbind、process 死亡、或 service onUnbind）。
+     *
+     * 離開的客戶端一律收到 [Listener.onUpstreamDisconnected]：對它而言上游確實沒了。
+     * 少了這一步，客戶端會繼續抱著一個已經 unbind 的 binder，之後每一筆轉送都默默掉進
+     * 黑洞（見 `LauncherOverlayProxy.remote`）。
+     */
     fun detach(client: C): ConnectionEffect<C> {
         if (!_clients.remove(client)) return ConnectionEffect()
-        if (_clients.isNotEmpty()) return ConnectionEffect()
+        val leaving = listOf(client)
+        if (_clients.isNotEmpty()) return ConnectionEffect(notifyDisconnected = leaving)
         return when (state) {
             UpstreamState.IDLE, UpstreamState.UNAVAILABLE -> {
                 state = UpstreamState.IDLE
-                ConnectionEffect()
+                ConnectionEffect(notifyDisconnected = leaving)
             }
 
             UpstreamState.BINDING, UpstreamState.CONNECTED -> {
                 state = UpstreamState.IDLE
-                ConnectionEffect(command = UpstreamCommand.UNBIND)
+                ConnectionEffect(command = UpstreamCommand.UNBIND, notifyDisconnected = leaving)
             }
         }
     }
@@ -107,10 +114,14 @@ class ConnectionStateMachine<C : Any> {
         if (_clients.isEmpty()) {
             return ConnectionEffect()
         }
+        val leaving = _clients.toList()
         _clients.clear()
         val wasBound = state == UpstreamState.BINDING || state == UpstreamState.CONNECTED
         state = UpstreamState.IDLE
-        return ConnectionEffect(command = if (wasBound) UpstreamCommand.UNBIND else null)
+        return ConnectionEffect(
+            command = if (wasBound) UpstreamCommand.UNBIND else null,
+            notifyDisconnected = leaving,
+        )
     }
 
     /** 已取得 Google app 的 binder。 */

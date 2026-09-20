@@ -30,6 +30,18 @@ public class LauncherClientService extends BaseClientService {
         cleanUp();
     }
 
+    /**
+     * LC-Fix: {@code unbindService()} does not call {@link #onServiceDisconnected}, so the
+     * overlay binder of the provider we just left used to survive here. A later
+     * {@link LauncherClient} would then pick it up in its constructor
+     * ({@code mOverlay = mLauncherService.mOverlay}) and attach its window to a dead session.
+     */
+    @Override
+    public void disconnect() {
+        super.disconnect();
+        mOverlay = null;
+    }
+
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
         setClient(ILauncherOverlay.Stub.asInterface(service));

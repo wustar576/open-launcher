@@ -51,10 +51,20 @@ public class BaseClientService implements ServiceConnection {
         return mConnected;
     }
 
-    public final void disconnect() {
+    /**
+     * Not {@code final}: {@link LauncherClientService} has to forget the overlay binder here,
+     * because {@code unbindService()} never delivers {@code onServiceDisconnected()}.
+     */
+    public void disconnect() {
         if (mConnected) {
             // Unbind with the very same ServiceConnection instance we bound with.
-            mContext.unbindService(mBridge);
+            Log.i(TAG, "unbindService(flags=" + mFlags + ")");
+            try {
+                mContext.unbindService(mBridge);
+            } catch (Throwable e) {
+                Log.w(TAG, "unbindService failed", e);
+            }
+            mBridge = null;
             mConnected = false;
         }
     }
