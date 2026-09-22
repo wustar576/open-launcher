@@ -26,8 +26,13 @@ class OverlayBridgeService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
 
-    /** 實機實驗開關（`adb shell setprop log.tag.OLFeed… DEBUG`），見 [FeedFlags]。 */
-    private val flags = FeedFlags.fromSystemProperties
+    /**
+     * 實機實驗開關（`adb shell setprop log.tag.OLFeed… DEBUG`），見 [FeedFlags]。
+     *
+     * [onCreate] 讀到 manifest 宣告的模式之後會換成 `withManifestMode(...)` 的版本，
+     * 這樣連 `OLFeed.Upstream` 的 `binding:` 那行都印得出目前是哪一種模式。
+     */
+    private var flags = FeedFlags.fromSystemProperties
 
     private lateinit var connector: GoogleOverlayConnector
     private lateinit var mode: BridgeMode
@@ -37,11 +42,15 @@ class OverlayBridgeService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        val manifestMode = readManifestMode()
+        flags = flags.withManifestMode(manifestMode)
         mode = resolveMode()
         connector = GoogleOverlayConnector(applicationContext, handler, flags)
         FeedLog.i(
             FeedLog.SERVICE,
-            "onCreate: mode=$mode, package=$packageName, " +
+            "onCreate: ${flags.describeMode()} " +
+                "(manifest=${manifestMode.manifestValue}, " +
+                "${FeedFlags.TAG_BRIDGE_MODE}=${flags.forceBridgeMode}), package=$packageName, " +
                 "googleApp=${if (connector.isGoogleAppAvailable()) "available" else "MISSING"} | " +
                 "switches: ${flags.describe()}",
         )
@@ -54,7 +63,7 @@ class OverlayBridgeService : Service() {
     }
 
     override fun onBind(intent: Intent): IBinder? {
-        FeedLog.i(FeedLog.SERVICE, "onBind: data=${intent.data} -> $mode")
+        FeedLog.i(FeedLog.SERVICE, "onBind: data=${intent.data} -> ${flags.describeMode()}")
         val uri = intent.data?.toString()
         FeedLog.d(
             FeedLog.SERVICE,
@@ -95,7 +104,17 @@ class OverlayBridgeService : Service() {
         super.onDestroy()
     }
 
-    private fun resolveMode(): BridgeMode {
+    /**
+     * 這一次真正生效的模式：manifest meta-data 的值，再讓
+     * `setprop log.tag.OLFeedBridge DEBUG` 有機會把它覆寫成 [BridgeMode.BRIDGE]。
+     *
+     * 模式只在這裡決定一次，所以切換 `OLFeedBridge` 之後一定要
+     * `am force-stop app.openlauncher.feed` 才會生效。
+     */
+    private fun resolveMode(): BridgeMode = flags.effectiveMode ?: BridgeMode.DEFAULT
+
+    /** manifest 宣告的模式（沒有覆寫時就是它）。 */
+    private fun readManifestMode(): BridgeMode {
         val value = try {
             packageManager.getServiceInfo(
                 ComponentName(this, OverlayBridgeService::class.java),

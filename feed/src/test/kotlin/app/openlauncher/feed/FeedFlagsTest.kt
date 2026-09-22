@@ -18,7 +18,7 @@ import org.junit.Test
 class FeedFlagsTest {
 
     private fun flagsWith(vararg enabled: String) =
-        FeedFlags { tag -> enabled.contains(tag) }
+        FeedFlags(isEnabled = { tag -> enabled.contains(tag) })
 
     @Test
     fun `everything is off by default`() {
@@ -28,6 +28,8 @@ class FeedFlagsTest {
         assertFalse(flags.detachBeforeAttach)
         assertFalse(flags.bindImportant)
         assertFalse(flags.noLinger)
+        assertFalse(flags.dualBind)
+        assertFalse(flags.forceBridgeMode)
     }
 
     @Test
@@ -87,6 +89,94 @@ class FeedFlagsTest {
         assertTrue(described, described.contains("wrapCb=false"))
         assertTrue(described, described.contains("no-cv"))
         assertTrue(described, described.contains("v${OverlayProtocol.API_VERSION}"))
+    }
+
+    @Test
+    fun `the manifest decides the mode while the override is off`() {
+        val flags = flagsWith()
+        assertEquals(BridgeMode.OVERLAY_PROXY, flags.effectiveMode(BridgeMode.OVERLAY_PROXY))
+        assertEquals(BridgeMode.BRIDGE, flags.effectiveMode(BridgeMode.BRIDGE))
+        // 還沒讀到 manifest 時沒得猜。
+        assertNull(flags.effectiveMode)
+        assertEquals(
+            BridgeMode.OVERLAY_PROXY,
+            flags.withManifestMode(BridgeMode.OVERLAY_PROXY).effectiveMode,
+        )
+    }
+
+    @Test
+    fun `the bridge switch overrides whatever the manifest says`() {
+        val flags = flagsWith(FeedFlags.TAG_BRIDGE_MODE)
+        assertTrue(flags.forceBridgeMode)
+        assertEquals(BridgeMode.BRIDGE, flags.effectiveMode(BridgeMode.OVERLAY_PROXY))
+        // manifest 都還沒讀到就已經確定是 bridge。
+        assertEquals(BridgeMode.BRIDGE, flags.effectiveMode)
+        assertEquals(
+            BridgeMode.BRIDGE,
+            flags.withManifestMode(BridgeMode.OVERLAY_PROXY).effectiveMode,
+        )
+    }
+
+    @Test
+    fun `the mode line says where the mode came from`() {
+        assertEquals(
+            "mode=proxy(manifest)",
+            flagsWith().withManifestMode(BridgeMode.OVERLAY_PROXY).describeMode(),
+        )
+        assertEquals(
+            "mode=bridge(override)",
+            flagsWith(FeedFlags.TAG_BRIDGE_MODE)
+                .withManifestMode(BridgeMode.OVERLAY_PROXY)
+                .describeMode(),
+        )
+        // manifest 還沒讀到、也沒有覆寫：印得出「不知道」而不是亂猜一個。
+        assertEquals("mode=?(manifest)", flagsWith().describeMode())
+    }
+
+    @Test
+    fun `describe carries the mode so one log line explains the whole variant`() {
+        val described = flagsWith(FeedFlags.TAG_BRIDGE_MODE)
+            .withManifestMode(BridgeMode.OVERLAY_PROXY)
+            .describe()
+        assertTrue(described, described.startsWith("mode=bridge(override)"))
+    }
+
+    @Test
+    fun `dual bind asks for the two launcher shaped connections`() {
+        val flags = flagsWith(FeedFlags.TAG_DUAL_BIND)
+        assertEquals(
+            listOf(FeedFlags.BIND_FLAGS_IMPORTANT, FeedFlags.BIND_FLAGS_WAIVE_PRIORITY),
+            flags.upstreamBindFlagsList,
+        )
+        assertEquals(0x41, FeedFlags.BIND_FLAGS_IMPORTANT)
+        assertEquals(0x21, FeedFlags.BIND_FLAGS_WAIVE_PRIORITY)
+        // 第一條就是拿 binder 的那條。
+        assertEquals(FeedFlags.BIND_FLAGS_IMPORTANT, flags.upstreamBindFlags)
+        assertEquals("0x41+0x21", flags.describeBindFlags())
+        assertTrue(flags.describe(), flags.describe().contains("bindFlags=0x41+0x21"))
+    }
+
+    @Test
+    fun `dual bind wins over bind important and says so`() {
+        val flags = flagsWith(FeedFlags.TAG_DUAL_BIND, FeedFlags.TAG_BIND_IMPORTANT)
+        assertEquals(
+            listOf(FeedFlags.BIND_FLAGS_IMPORTANT, FeedFlags.BIND_FLAGS_WAIVE_PRIORITY),
+            flags.upstreamBindFlagsList,
+        )
+        assertTrue(flags.bindImportantIgnored)
+        assertTrue(flags.describe(), flags.describe().contains("bindImp ignored"))
+        // 只開 BindImp 時不算被蓋掉。
+        assertFalse(flagsWith(FeedFlags.TAG_BIND_IMPORTANT).bindImportantIgnored)
+    }
+
+    @Test
+    fun `a single connection is still the default shape`() {
+        assertEquals(listOf(FeedFlags.BIND_AUTO_CREATE), flagsWith().upstreamBindFlagsList)
+        assertEquals("0x1", flagsWith().describeBindFlags())
+        assertEquals(
+            listOf(FeedFlags.BIND_FLAGS_IMPORTANT),
+            flagsWith(FeedFlags.TAG_BIND_IMPORTANT).upstreamBindFlagsList,
+        )
     }
 
     @Test

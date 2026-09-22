@@ -57,8 +57,14 @@
             bridge（設計 B，回傳 amirz.aidlbridge.IBridge）。
             改這裡再重裝就能切換，不需要改程式碼。
             2026-09-20 Pixel 10 / Android 16 實測：bridge 模式拿不到 overlayStatusChanged
-            （Google app 每筆交易都重驗呼叫者 UID），只有 proxy 能真的叫出 Discover，
-            所以預設是 proxy。
+            （Google app 每筆交易都重驗呼叫者 UID）。
+            2026-09-22 更正：**proxy 也不行**。同一支裝置上的 2×2 實機測試顯示，
+            proxy 在乾淨的冷啟動下從來沒有獨立成功過；09-20 那次「成功」是借用了
+            Google 先前為直連的 debug 啟動器建好、又因舊版啟動器切換提供者時不送
+            windowDetached 而沒被拆掉的視窗。proxy 的失敗點是「交易的 uid 是外掛的，
+            但 layout_params 裡的 window token 屬於啟動器」。詳見 README §4.13。
+            預設仍是 proxy（兩者之中比較接近可行、且有完整診斷 log 的那一邊），
+            但不代表它可用。
         -->
         <service
             android:name=".OverlayBridgeService"

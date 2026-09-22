@@ -11,6 +11,7 @@ import android.content.ComponentName
 import android.os.Handler
 import android.os.IBinder
 import android.os.RemoteException
+import com.google.android.libraries.launcherclient.ILauncherOverlay
 
 /**
  * 設計 (B)：回傳 `amirz.aidlbridge.IBridge` 給啟動器。
@@ -32,8 +33,15 @@ class BridgeBinder(
 
     private val clients = LinkedHashMap<IBinder, Client>()
 
+    /** 已經 ping 過的上游 binder：同一個 binder 只 ping 一次（兩個客戶端不必各打一發）。 */
+    private var probedBinder: IBinder? = null
+
     override fun bindService(cb: IBridgeCallback?, flags: Int) {
         // oneway：這裡在 binder 執行緒上，所有狀態都丟回主執行緒處理。
+        FeedLog.i(
+            FeedLog.BRIDGE,
+            "bindService(flags=${AttachPayload.hex(flags)}) from the launcher, callback=$cb",
+        )
         if (cb == null) {
             FeedLog.w(FeedLog.BRIDGE, "bindService() with a null callback, ignoring")
             return
@@ -56,13 +64,20 @@ class BridgeBinder(
         val existing = clients[token]
         if (existing != null) {
             // 同一個 callback 再綁一次：容忍，直接把目前狀態再回報一次。
-            FeedLog.i(FeedLog.BRIDGE, "duplicate bindService() for $token (flags=$flags)")
+            FeedLog.i(
+                FeedLog.BRIDGE,
+                "duplicate bindService() for $token (flags=${AttachPayload.hex(flags)})",
+            )
             connector.attach(existing)
             return
         }
         val client = Client(token, cb)
         clients[token] = client
-        FeedLog.i(FeedLog.BRIDGE, "bindService(flags=$flags) from $token, now ${clients.size} client(s)")
+        FeedLog.i(
+            FeedLog.BRIDGE,
+            "bindService(flags=${AttachPayload.hex(flags)}) from $token, " +
+                "now ${clients.size} client(s)",
+        )
         if (!client.link()) {
             clients.remove(token)
             return
@@ -75,6 +90,45 @@ class BridgeBinder(
         FeedLog.i(FeedLog.BRIDGE, "client $token went away, ${clients.size} left")
         client.unlink()
         connector.detach(client)
+    }
+
+    /**
+     * 啟動器是用 `IBinder.getInterfaceDescriptor()` 認這個 binder 是不是 overlay 的，
+     * 所以交還之前先自己讀一次：2026-09-20 實機在啟動器那一端讀到的是**空字串**，
+     * 對照這一行就知道是「Google app 本來就沒給描述字串」還是「跨程序之後才掉的」。
+     */
+    private fun describeDescriptor(binder: IBinder): String {
+        val descriptor = runCatching { binder.interfaceDescriptor }
+            .getOrElse { return "<failed: ${it.javaClass.simpleName}>" }
+        return when {
+            descriptor == null -> "<null>"
+            descriptor.isEmpty() -> "<empty>"
+            else -> descriptor
+        }
+    }
+
+    /**
+     * 診斷用：打一發**阻塞式**唯讀交易（`hasOverlayContent`）當 ping。
+     *
+     * 答得出來＝binder 是活的、Google app 願意處理**外掛**送去的交易；接下來啟動器拿著
+     * 同一個 binder 送 `windowAttached2` 還是沒反應的話，被擋掉的就是啟動器那個呼叫者身分
+     * （README §5 風險 1），而不是外掛。proxy 模式本來就會 ping（見 [LauncherOverlayProxy]），
+     * bridge 模式少了這一行就等於少了這個對照組。
+     *
+     * 必須在背景執行緒做——阻塞式 binder 呼叫不可以擋住主執行緒。
+     */
+    private fun probeUpstream(binder: IBinder) {
+        if (probedBinder === binder) return
+        probedBinder = binder
+        Thread({
+            try {
+                val overlay = ILauncherOverlay.Stub.asInterface(binder)
+                val hasContent = overlay.hasOverlayContent()
+                FeedLog.i(FeedLog.BRIDGE, "upstream ping: hasOverlayContent() = $hasContent")
+            } catch (t: Throwable) {
+                FeedLog.w(FeedLog.BRIDGE, "upstream ping: hasOverlayContent() failed", t)
+            }
+        }, "OLFeed-bridge-probe").start()
     }
 
     private inner class Client(
@@ -99,15 +153,22 @@ class BridgeBinder(
         }
 
         override fun onUpstreamConnected(component: ComponentName, binder: IBinder) {
-            FeedLog.i(FeedLog.BRIDGE, "handing Google overlay binder to $token")
+            FeedLog.i(
+                FeedLog.BRIDGE,
+                "handing Google overlay binder to $token: binder=$binder " +
+                    "descriptor=${describeDescriptor(binder)} alive=${binder.isBinderAlive}",
+            )
             try {
                 callback.onServiceConnected(component, binder)
             } catch (e: RemoteException) {
                 FeedLog.w(FeedLog.BRIDGE, "onServiceConnected() failed for $token", e)
             }
+            probeUpstream(binder)
         }
 
         override fun onUpstreamDisconnected(component: ComponentName?) {
+            // 下次連上（可能是新的 binder）要再 ping 一次。
+            probedBinder = null
             FeedLog.i(FeedLog.BRIDGE, "telling $token the overlay went away")
             try {
                 callback.onServiceDisconnected(component)

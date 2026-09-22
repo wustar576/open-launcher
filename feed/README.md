@@ -42,7 +42,7 @@ Google app」，而那正是它公開提供的功能。請不要把這個 flag �
 
 | 模式 | `onBind()` 回傳 | 說明 |
 |---|---|---|
-| `proxy`（**預設**，實機可用） | `ILauncherOverlay` 的 Stub | 外掛實作全部 17 個交易並逐一轉送。所有呼叫都由外掛的程序發出。 |
+| `proxy`（**預設**，冷啟動實機失敗） | `ILauncherOverlay` 的 Stub | 外掛實作全部 17 個交易並逐一轉送。所有呼叫都由外掛的程序發出。 |
 | `bridge`（實機失敗，僅供對照） | `amirz.aidlbridge.IBridge` | 外掛只負責「代綁」，把 Google 的 binder 交還啟動器，之後不在資料路徑上。 |
 
 切換方式：改 `src/main/AndroidManifest.xml` 裡的
@@ -67,6 +67,13 @@ Google app 被 `force-stop` 後會自動重連。因此 `proxy` 成為預設值�
 
 （另一個兩者共通的風險：overlay 視窗是掛在啟動器傳過來的 window token 上的。
 那個 token 在兩種模式裡都一樣是啟動器的，所以這一項不構成兩者的差異。）
+
+> **2026-09-22 更正（上面那兩段請連同本段一起讀）**：上一段「`proxy` 實測可以正常滑出
+> Discover」已被 2026-09-22 的實機測試推翻。**在乾淨的冷啟動下，`proxy` 從來沒有獨立
+> 成功過**；09-20 唯一那次成功是接在「debug 啟動器直連 Google」之後切過去的，借用了
+> 那個沒有被拆掉的視窗。詳見 §4.13。
+> 另外，括號那段說「window token 不構成兩者的差異」在字面上仍然正確，但它現在是
+> **兩種模式共同的致命點**，而不是一個可以忽略的旁註——目前所有證據都指向這裡（§4.13 §6）。
 
 ---
 
@@ -225,7 +232,15 @@ adb install -r feed/build/outputs/apk/debug/feed-debug.apk
 
 - 回設定頁，「取得 Open Launcher Feed」那一列應該消失。
 
-### 4.3 綁定（proxy 模式，預設）✅ 已實機驗證
+### 4.3 綁定（proxy 模式，預設）⚠️ 2026-09-22 已無法重現
+
+> **2026-09-22 更正**：這一節的 logcat 是 09-20 抓到的，當時被記成「proxy 已實機驗證」。
+> 2026-09-22 的 2×2 測試**九次執行全部失敗**（其中七次是乾淨的冷啟動迴圈），
+> 而且 09-20 那次之所以會出現最後兩行
+> （`overlay status changed: 0x19`、Discover 真的畫出來），是因為它接在
+> 「debug 啟動器直連 Google」之後，借用了沒有被 `windowDetached` 拆掉的視窗。
+> 下面的 logcat 仍然是正確的「成功長什麼樣」的樣本，但**在冷啟動下跑不出來**，
+> 請當成目標而不是現況。完整說明見 §4.13。
 
 回到桌面並在第一頁向右滑。實機（Pixel 10 / Android 16）看到的 logcat：
 
@@ -257,6 +272,16 @@ I LauncherClient:       overlay status changed: 0x19 (scroll events accepted)
 - 是不是被切回 `bridge` 模式了（見 4.5）。
 
 ### 4.5 bridge 模式：實機失敗的樣子（僅供對照）
+
+> **2026-09-22 更正**：下面這段原本的結語是「這就是預設改用 `proxy` 的原因」，
+> 語氣上暗示了「`proxy` 是可用的那一邊」。2026-09-22 的實機測試推翻了後半句：
+> **`proxy` 模式在冷啟動下從來沒有獨立成功過**。09-20 唯一那次成功是借用了
+> Google 先前為 debug 啟動器直連建好、而且沒有被 `windowDetached` 拆掉的視窗
+> （完整說明見 §4.13）。所以正確的說法是：**bridge 失敗、proxy 也失敗**，
+> 兩者敗在不同的機制上——bridge 敗在「交易的呼叫者 uid 變成啟動器的」，
+> proxy 敗在「呼叫者 uid 是對的，但 `layout_params` 裡的 window token 是啟動器的」。
+> 下面這段對 bridge 的描述本身仍然成立，而且 2026-09-22 在外掛那一端補到了
+> 更直接的證據（§4.13 §3）。
 
 把 `bridge_mode` 改回 `bridge` 重新安裝，實機會看到：
 
@@ -555,6 +580,8 @@ adb shell am force-stop app.openlauncher.feed     # 讓外掛從乾淨狀態重�
 | `OLFeedDetachPre` | 每次 attach 前無條件補一發 `windowDetached(false)` | `DETACH_BEFORE_ATTACH`（假說 #3） |
 | `OLFeedNoLinger` | 關掉「最後一個客戶端走了先等 1 秒」的緩衝，回到舊的「立刻 unbind」 | 用來**重現** 22:48 那次的上游抖動 |
 | `OLFeedBindImp` | 綁 Google app 時多加 `BIND_IMPORTANT`（`0x41`） | 對照另一家外掛的兩條連線 |
+| `OLFeedDualBind` | 綁 Google app 改用**兩條** `ServiceConnection`，flags 分別是 `0x41`（`BIND_AUTO_CREATE\|BIND_IMPORTANT`）與 `0x21`（`BIND_AUTO_CREATE\|BIND_WAIVE_PRIORITY`），模仿真正啟動器對 overlay service 的綁定形狀；兩條會拿到同一個 binder，只認第一條收到的（不一樣就記一筆 warning），unbind 時兩條都解除。與 `OLFeedBindImp` 同時打開時**以這個為準**，log 會寫 `bindImp ignored` | 假說：Google app 看的是「客戶端綁定的形狀」 |
+| `OLFeedBridge` | 不管 manifest meta-data 寫什麼，一律用 **bridge 模式**（外掛代綁 Google，再把 Google 的 binder 交還啟動器）。關掉時 manifest 的值照常生效（預設 proxy）。**模式只在 `onCreate()` 決定一次**，所以改完一定要 `am force-stop app.openlauncher.feed` | 2026-09-21 證實 proxy 在冷啟動下從沒成功過，bridge 必須重測，但不想為了換模式重建 APK |
 | `OLFeedV9` / `OLFeedV11` | 外掛綁 Google app 的 URI 變成 `?v=9` / `?v=11` | E3 |
 | `OLFeedNoCv` | URI 整個不帶 `cv` 參數（另一家外掛就是這樣） | E3 |
 
@@ -562,10 +589,24 @@ adb shell am force-stop app.openlauncher.feed     # 讓外掛從乾淨狀態重�
 那一筆是哪個變體送出去的：
 
 ```
+I OLFeed.Service:  onCreate: mode=bridge(override) (manifest=proxy, OLFeedBridge=true), package=app.openlauncher.feed …
 I OLFeed.Upstream: binding: com.android.launcher3.WINDOW_OVERLAY data=app://app.openlauncher.feed:10429?v=7&cv=9 …
-                   flags=0x1 | switches: rewriteId=false wrapCb=false detachPre=false linger=1000ms bindFlags=0x1 upstream=v7,cv9
+                   bindFlags=0x41+0x21 connections=2 | switches: mode=bridge(override) rewriteId=false wrapCb=false
+                   detachPre=false linger=1000ms bindFlags=0x41+0x21(dual) upstream=v7,cv9
 I OLFeed.Proxy:    windowAttached2(keys=[…]) -> forwarding now | switches: …
 ```
+
+bridge 模式下另外還看得到這三行（「Google app 到底理不理外掛」的證據）：
+
+```
+I OLFeed.Bridge:   bindService(flags=0x41) from the launcher, callback=…
+I OLFeed.Bridge:   handing Google overlay binder to …: binder=… descriptor=com.google.android.libraries.launcherclient.ILauncherOverlay alive=true
+I OLFeed.Bridge:   upstream ping: hasOverlayContent() = true
+```
+
+`descriptor=<empty>` 代表 Google app 交回來的 binder 連介面描述字串都沒有——那正是
+2026-09-20 在**啟動器**那一端看到的樣子，印在外掛這一端就分得出是「本來就空」還是
+「跨程序之後才掉的」。
 
 #### 同一輪改掉的兩個真 bug（與上面的假說無關）
 
@@ -584,6 +625,11 @@ I OLFeed.Proxy:    windowAttached2(keys=[…]) -> forwarding now | switches: …
 `windowAttached2`，那種情況多送一發 detach 會把畫面拆掉。
 
 ### 4.12 下一次接上手機的實驗流程（RUNBOOK）
+
+> **此 runbook 已於 2026-09-22 執行完畢（步驟 A～D，共五個階段），結果見 §4.13。**
+> 下面的步驟與指令保留原樣，一方面是脈絡，一方面是之後要重跑時可以直接照抄。
+> 兩點差異要先知道：**步驟 E（重啟 Google app）不必做**——「service 實例卡住」這個變數
+> 已經被清掉兩次（§4.13 §5），失敗照樣重現；**A-1 沒有做**，理由見判讀表下方。
 
 先設好：
 
@@ -639,6 +685,14 @@ $ADB logcat -d -s OLFeed.Service OLFeed.Upstream OLFeed.Proxy OLFeed.Callback La
 | 失敗 | 成功 | 外掛沒壞，差別真的在**啟動器**（release vs debug）→ 繼續步驟 C（E1） |
 | 失敗 | 失敗 | 兩邊都不成立 → 嫌疑最大的是**裝置當下的 Google app 狀態**（那個活了 2.5 小時、被多家客戶端共用的 service 實例）→ 直接跳步驟 E |
 | 成功 | 失敗 | 只有「現在的外掛 ＋ release 啟動器」這一格壞 → 回到步驟 C／D |
+
+> **2026-09-22：A-1（release 啟動器 ＋ 5659722 外掛）沒有做，而且已經不需要做。**
+> 這張表的用途是「分辨壞的是啟動器還是外掛」，但 A-2、A-3、A-0 三格**全部失敗**
+> （§4.13 §1）之後，兩個候選都已經被個別排除：回到 5659722 那版外掛一樣失敗
+> ⇒ 不是 `8eec4f5` 之後的外掛改動；用 debug 啟動器（本身就 debuggable、直連 Google
+> 完全正常）一樣失敗 ⇒ 不是「release 啟動器不是 debuggable」。A-1 是這兩個都已知失敗的
+> 變數的組合，不論結果是什麼都不會改變結論，而它又是唯一需要使用者切換預設桌面的一格，
+> 所以直接略過。
 
 #### 步驟 B：E0 基準線（現在的外掛、開關全關）＋ **Google 程序的 log**
 
@@ -699,13 +753,212 @@ $ADB shell am force-stop com.google.android.googlequicksearchbox
 ——**外掛自己持有 overlay 視窗**（要 `SYSTEM_ALERT_WINDOW`，與「零權限」的設計前提衝突）
 或**啟動器本體 debuggable**（安全上不可接受）——都不建議，應該先把步驟 A～E 的證據拿到手。
 
+> **2026-09-22 補充**：步驟 A～D 的證據已經拿到手，而且就是落在這一段描述的情況。
+> 上面只列了兩條路，2026-09-22 想到了**第三條**（外掛提供透明 Activity，用自己的 token
+> 去 attach），它不需要任何權限、也不需要把啟動器變成 debuggable。見 §4.13 §7。
+
+### 4.13 2026-09-22 實機結果：2×2 補完、09-20 成功的真相、bridge 的機制證據
+
+裝置：Pixel 10 / Android 16 / `59041FDCR0081G`，Google app 17.59.18（自 09-19 起未變）。
+全程未 force-stop Google app、未改預設桌面 role。原始 log 與 `dumpsys` 快照都在
+`build/device-test/2026-09-22/`（**該目錄在 `build/` 底下，已被 git 忽略**，
+所以下面引用的檔名只在當時跑測試的那台機器上找得到）。
+
+判據與 §4.12 共同迴圈相同：`LauncherClient: overlay status changed: 0x19` 出現＝成功；
+停在 `windowAttached2 sent …, waiting for overlayStatusChanged`＝失敗。
+另外每一格都用 `dumpsys window windows` 確認 `GoogleDiscoverWindow` 在不在。
+
+#### 1. 2×2 補完：冷啟動下沒有任何一格成功
+
+| 代號 | 啟動器 | 外掛 | 結果 | log |
+|---|---|---|---|---|
+| A-2 | debug `0bd149a` | OLD `5659722` | **失敗** ×3（自然 trace ＋ 兩次冷啟動迴圈） | `a2-userswitch.log`、`a2-loop1.log`、`a2-loop2.log` |
+| A-3 | debug `0bd149a` | CUR（現在的 HEAD） | **失敗** ×2 | `a3-loop1.log`、`a3-loop2.log` |
+| A-0 | debug **`5659722`** | OLD `5659722` | **失敗** ×3（安裝當下 ＋ 兩次冷啟動迴圈） | `a0-install.log`、`a0-loop1.log`、`a0-loop2.log` |
+| A-0（排除干擾） | debug `5659722` | OLD `5659722` | **失敗**，且外掛端確認**只有一個客戶端** | `a0-loop3-clean.log` |
+| A-1 | release `0bd149a` | OLD `5659722` | **未做**（理由見 §4.12 判讀表下方） | — |
+
+A-0 是「兩邊都是 09-20 成功時的版本」，等於把 09-20 的組合原封不動搬回來——
+一樣失敗。`a0-loop3-clean` 這一輪先 `am force-stop app.openlauncher`（release 啟動器
+當時在 home task 底下 paused、程序還活著），確認整段期間它沒有再起來，外掛的
+`OLFeed.Service: onBind` 只出現一次（`caller claims package=app.openlauncher.debug uid=10425`），
+所以**「release 啟動器同時搶同一個外掛 service」這個干擾項已被排除**，
+A-0 冷啟動失敗成立。
+
+失敗的形狀每一次都一樣：啟動器→外掛這一段完全正常（`onBind` 認得呼叫者、
+`OLFeed.Upstream: connected to …DrawerOverlayService`、`OLFeed.Proxy: windowAttached2(…)`
+收到並轉送），**Google 收下 `windowAttached2` 之後就沒有下文**——沒有
+`overlayStatusChanged`、沒有 `GoogleDiscoverWindow`。同一支裝置、同一個 Google 程序、
+同一個 service 實例，啟動器**直連**時 `0x19` 與 Discover 視窗都正常
+（`phase1-report.md` §2、`direct-descriptor.log`）。
+
+#### 2. 09-20 那次「成功」的機制已經解釋清楚
+
+09-20 唯一成功的那次是「debug 啟動器 ＋ 5659722 外掛」，但它**不是冷啟動**，
+而是在啟動器已經直連 Google 之後、從設定裡**切換提供者**切過去的。關鍵在版本差異：
+
+| 啟動器版本 | `LauncherClient.reconnect()` 切換提供者時 | 後果 |
+|---|---|---|
+| `5659722` | **不送** `windowDetached` | Google 留著它剛才為 debug 啟動器（直連）建好的 `GoogleDiscoverWindow` |
+| `0bd149a`（含 `8eec4f5` 之後的修正） | **先送** `windowDetached` 再 unbind（§4.9） | 視窗被拆掉，外掛之後 attach 同一個 token 就無窗可借 |
+
+`a0-switchback2.log` 抓到了完整的切回序列（`overlay api version 7 from app.openlauncher.feed`
+→ `bindService(app.openlauncher.feed, …)` ×2 → `OLFeed.Service: onBind` →
+`OLFeed.Upstream: connected` → `LauncherClient: windowAttached2 sent` →
+`OLFeed.Proxy: windowAttached2(keys=[…])`），配上 `dumpsys window windows`：
+
+- 視窗**仍是同一個** `Window{4a16640 u0 GoogleDiscoverWindow}`，
+  **token 也仍是直連時那一個**：`mToken=ActivityRecord{… app.openlauncher.debug/…LawnchairLauncher t9820}`；
+- Surface 編號由直連階段的 `GoogleDiscoverWindow#192107` 變成 `#192147`
+  ⇒ Google **重新配置並重繪了這個視窗**，不是一張靜止的殘影；
+- 整段 trace 裡 `windowDetached` 出現 **0 次**（`LauncherClient` 與 `OLFeed.Proxy` 兩邊都沒有）。
+
+對照 A-0 冷啟動（沒有舊視窗可借 ⇒ `GoogleDiscoverWindow` 根本不存在），兩邊形成完整對照。
+
+**結論：`proxy` 模式在冷啟動下從來沒有獨立成功過。** 09-20 記錄的那次成功是
+「借用 Google 為直連的 debug 啟動器建好、又因為舊版不送 detach 而沒被拆掉的視窗」。
+這條結論推翻了 §1、§4.5、`BridgeMode.DEFAULT` 註解與 §5 風險 1／2 裡
+「proxy 實測可正常顯示 Discover」的說法，那幾處都已加上更正。
+（log：`a0-switchback.log`＝直連那一半、`a0-switchback2.log`＝切回外掛那一半、
+`a0-loop1/2/3-clean` ＝冷啟動對照。）
+
+#### 3. bridge 模式的機制證據：Google 依 `getCallingUid()` 逐筆決定回不回應
+
+§4.11 新增的 `OLFeedBridge` 開關讓 bridge 模式不必重建 APK 就能重測。
+**同一個 Google binder**，在兩個程序裡查出來的樣子完全不同：
+
+| 查詢的位置 | `getInterfaceDescriptor()` | `hasOverlayContent()` ping |
+|---|---|---|
+| **外掛程序內**（`OLFeed.Bridge: handing Google overlay binder …`） | `com.google.android.libraries.launcherclient.ILauncherOverlay`、`alive=true` | **true** |
+| **交還啟動器之後**（`LauncherClientBridge: got overlay binder from …`） | **空字串**（括號內是 `()`），並伴隨 `has no interface descriptor` 警告 | — |
+| 直連 Google（對照組） | `com.google.android.libraries.launcherclient.ILauncherOverlay` | — |
+| proxy 模式經外掛（對照組） | `com.google.android.libraries.launcherclient.ILauncherOverlay`（因為查詢發生在外掛程序內） | — |
+
+`getInterfaceDescriptor()` 底下就是 `INTERFACE_TRANSACTION`——**連這一筆最基本的交易，
+Google 都不回應來自啟動器 uid 的呼叫**。這是目前為止「Google 每筆交易都依
+`Binder.getCallingUid()` 只回應綁定它的那個 uid」最直接的實機證據，
+也說明了為什麼 proxy 模式之前一直看不到這個訊號（查詢發生在外掛程序內，當然是正常的）。
+（log：`direct-descriptor.log`、`cur-baseline.log`、`v2.log`～`v4.log`。）
+
+**另一個身分訊號**：`OLFeedV9`＋`OLFeedNoCv` 把上游 URI 改成 `?v=9`（不帶 `cv`，
+＝另一家外掛在 `dumpsys` 裡的形狀）之後，**連外掛自己拿到的 binder 都是
+`descriptor=<empty>`、`hasOverlayContent()=false`**（變體 V4）。同一個 `?v=9` 對
+`com.teslacoilsw.launcherclientproxy` 是可用的（`phase4` 的 `dumpsys` 實證）。
+⇒ Google 對特定套件另有身分上的優待，不是單純的協定版本問題。
+
+#### 4. §4.11 所有開關的任意組合都失敗
+
+| 變體 | 開啟的開關 | 實證（log 內的 `switches:` / `binding:`） | 結果 |
+|---|---|---|---|
+| C-1 | `OLFeedRewriteId` | `rewriteId=true …`；4 行 `rewritten`（packageName、title，皆註明 `window token untouched`） | **失敗** |
+| C-2 | `OLFeedRewriteId`＋`OLFeedWrapCb` | `rewriteId=true wrapCb=true …` | **失敗** |
+| D-1 | `OLFeedBindImp` | `bindFlags=0x41` | **失敗** |
+| D-2 | `OLFeedBindImp`＋`OLFeedNoCv`＋`OLFeedV9` | `data=app://app.openlauncher.feed:10429?v=9 … flags=0x41` | **失敗** |
+| D-3 | C-2 ＋ D-2（五個全開） | `rewriteId=true wrapCb=true … bindFlags=0x41 upstream=v9,no-cv` | **失敗** |
+| V1 | `OLFeedDualBind` | `mode=proxy(manifest) … bindFlags=0x41+0x21(dual) connections=2` | **失敗** |
+| V2 | `OLFeedBridge` | `mode=bridge(override) … connections=1` | **失敗** |
+| V3 | `OLFeedBridge`＋`OLFeedDualBind` | `mode=bridge(override) … bindFlags=0x41+0x21(dual)` | **失敗** |
+| V4 | V3 ＋ `OLFeedNoCv`＋`OLFeedV9` | `mode=bridge(override) … upstream=v9,no-cv` | **失敗** |
+
+（log：`c1.log`～`d3.log`、`v1.log`～`v4.log`，各自還有 `-googleapp.log`／`-props.txt`／
+`-services.txt`／`-window.txt`／`-ps.txt`。）
+
+兩條線索因此結案：
+
+- **客戶端身分（假說 #1／#2／#4）**：改寫 `layout_params.packageName`、改寫視窗標題、
+  把 callback binder 換成外掛自己的，單獨或合起來都沒有任何改善。
+  C-2／D-3 打開 `OLFeedWrapCb` 之後 `OLFeed.Callback` 的行數是 **0**——
+  Google **完全沒有對 callback binder 呼叫過任何方法**，連 `overlayStatusChanged(0x0)`
+  這種否定回應都沒有。
+- **連線形狀（E3）**：V1／V3／V4 用 `OLFeedDualBind` 做出**兩條**連線
+  （`0x41 CR IMP` ＋ `0x21 CR WPRI`，`dumpsys` 已確認），再加上 `?v=9` 無 `cv` 的 URI，
+  **已與另一家外掛完全同形**，一樣失敗。⇒ **連線形狀不是原因。**
+
+#### 5. proxy 模式失敗的解釋：uid 對了，但 window token 不對
+
+proxy 模式下發出 `windowAttached2` 的呼叫者 uid 是**外掛的**（10429），這一點沒有問題；
+但 bundle 裡的 `layout_params` 帶的是**啟動器的** window token，而 token 屬於另一個 uid：
+
+```
+windowAttached2 payload (forwarded untouched): keys=[client_options, configuration, layout_params]
+  | layout_params: packageName=app.openlauncher.debug type=1 flags=0x81910100 token=present
+    title=app.openlauncher.debug/app.lawnchair.LawnchairLauncher
+  | client_options=0xf | configuration: <absent>
+```
+
+改寫 `packageName`／`title` 無效（C-1／C-2／D-3），而 **token 本身外掛改不了**——
+C-1 的 log 也明寫 `window token untouched`。
+
+更關鍵的是 Google 程序自己的 log：在 `BadTokenException`、`token … is not valid`、
+`permission denied for window type`、`Unable to add window`、`W WindowManager`、
+`E ViewRootImpl` **六種樣式上全部零命中**，五個階段一致
+（`a3-googleapp.log`、`c1/c2/d1/d2/d3-googleapp.log`、`v1/v2/v3/v4-googleapp.log`；
+其中 C-2 與 D-1 的 Google 程序在整個 15 秒視窗內一行 log 都沒印）。
+
+依 §4.12 步驟 B 的判讀表：**Google 根本沒有去建視窗**。不是「建了視窗被 WMS 用 token 擋掉」，
+而是「它在更早的地方檢查了什麼、沒過就靜默放棄」——收下交易、什麼都不做、也不回話。
+
+> **這條推論唯一的反例**（`phase4-report.md` §7）：`a0-loop3-clean` 那一輪的
+> `dumpsys window windows` 裡有另一家啟動器的 `GoogleDiscoverWindow`，
+> 它也是**經由自己的外掛**（`com.teslacoilsw.launcherclientproxy`，uid 10364）連 Google，
+> 而 Google 仍為它建了視窗、且 `mToken` 屬於**啟動器本體**而不是那個外掛。
+> 所以「Google 會驗 token 屬於誰」不能被當成已證實的機制——更保守也更符合全部證據的
+> 說法是：**Google 對特定套件另有優待（§3 的第二個訊號），而在沒有那份優待時，
+> uid 與 token 必須落在同一個程序上。**
+
+#### 6. 其他今天確認的事實
+
+| 事實 | 佐證 |
+|---|---|
+| §4.11 啟動器修正 2（一次 `install -r` 只 `reconnect()` 一次）**實機驗證通過** | 安裝 debug 啟動器期間 `reconnect: releasing…` 的 `grep -c` ＝ **1**（`phase1-report.md` §2） |
+| **「service 實例卡住」這個變數已經被清掉兩次，失敗照樣重現** ⇒ §4.12 步驟 E 不必做 | (a) 那個活了 8.7 小時的 `ServiceRecord` 在 debug 啟動器 `install -r` 時自然死亡重生（`createTime=-51s`）；(b) `:googleapp` 程序在 A-2 loop1 之後自行重啟（pid 25287 → 6568）。兩次之後所有冷啟動仍然失敗 |
+| Google app 版本 **17.59.18**，自 09-19 起未變 | `pre-0x` 與 `p5-package-*.txt` 快照 |
+| **`linger` 其實沒有生效**（§4.11 真 bug #1 要打折扣） | `a3-loop1.log`：`onUnbind → onDestroy → detach → last client left; keeping the upstream for 1000ms → detachAll(), state=LINGERING → unbinding from …` **全部發生在同一毫秒**。最後一個客戶端解除綁定時 Android 就銷毀 Service，`onDestroy` 觸發的 `detachAll()` 直接把 `LINGERING` 推去 unbind |
+| `uiautomator dump` 在本輪執行環境被權限分類器擋下 | 改用「每次點擊前 `screencap` 連拍兩張比對畫面是否靜止 ＋ `dumpsys activity activities` 確認 `topResumedActivity`」定位（`p5-s01`～`p5-s15.png`），全程只在我們自己的設定畫面內操作 |
+
+#### 7. 下一步：第三條路（**尚未決定、尚未實作**）
+
+唯一還符合全部證據的方向是：**window token 也必須是外掛自己的**（uid 已經是了）。
+§4.12 結尾原本只列了兩條路，兩條都與設計前提衝突：
+
+1. **外掛自己持有 overlay 視窗** → 要 `SYSTEM_ALERT_WINDOW`，與「零權限」衝突；
+2. **啟動器本體 debuggable** → 安全上不可接受。
+
+2026-09-22 想到的第三條路**兩個問題都沒有**：
+
+3. **外掛提供一個透明的 Activity，由啟動器在往左滑時啟動。**
+   - 那個 Activity 用**自己的** window token 向 Google attach ⇒ **uid 與 token 都是外掛的**，
+     落在同一個程序上，正好補掉 §5 指出的那個缺口。
+   - 啟動器透過**自有的 AIDL**（不是 Google 的介面）把滑動進度轉送給該 Activity。
+   - Google 回報要關閉 overlay 時，該 Activity 自己 `finish()`。
+   - **不需要任何權限**——Activity 的視窗是系統正常發給它的，不是 `TYPE_APPLICATION_OVERLAY`。
+
+這條路還沒有被決定採用，也還沒有寫任何程式。**第一步應該先做原型驗證**一件事：
+**Google 願不願意在外掛自己的 Activity token 上畫出 Discover。** 只要這一步過不了，
+後面的滑動轉送、生命週期銜接、視覺接縫就都不必談；過得了，才值得設計完整的介面。
+
 ## 5. 已知風險
 
-1. ~~**(B) bridge 模式的身分問題**~~ → **已實機證實會失敗**（2026-09-20，Pixel 10 /
-   Android 16）：binder 交還啟動器之後，後續交易的 `Binder.getCallingUid()` 是啟動器的
-   UID，Google app 每筆交易都重驗，於是完全不回應。預設因此改為 `proxy`。
-2. **(A) proxy 模式的效能**：捲動事件每一筆都多一次 IPC。實機（Pixel 10）滑動跟手、
-   看不出掉幀；低階裝置尚未驗證。
+1. **(B) bridge 模式的身分問題** → **已實機證實會失敗，而且 2026-09-22 拿到了機制證據。**
+   binder 交還啟動器之後，後續交易的 `Binder.getCallingUid()` 是啟動器的 UID，
+   Google app 每筆交易都重驗，於是完全不回應。2026-09-22 的直接證據：**同一個 binder**
+   在外掛程序內查得到 `descriptor=com.google.android.libraries.launcherclient.ILauncherOverlay`、
+   `hasOverlayContent()` ping 得到 `true`；交還啟動器之後，啟動器連
+   `INTERFACE_TRANSACTION`（`getInterfaceDescriptor()`）都拿到空字串（§4.13 §3）。
+   ~~預設因此改為 `proxy`。~~ 預設值確實是 `proxy`，但**不是因為 proxy 可用**——見風險 2。
+2. **(A) proxy 模式：冷啟動下從來沒有獨立成功過**（2026-09-22 更正）。
+   原本這一條只寫效能，是因為當時以為 proxy 功能上已經可用；
+   2026-09-22 的 2×2 實機測試（A-0／A-2／A-3 共九次執行，其中七次是乾淨的冷啟動迴圈；
+   外掛與啟動器版本的四種組合裡做了三種）**全部失敗**，09-20 唯一那次「成功」已被解釋成「借用了先前直連留下、
+   又因舊版不送 `windowDetached` 而沒被拆掉的視窗」（§4.13 §1／§2）。
+   失敗點與 bridge 不同：交易的 uid 是對的（外掛的），但 `layout_params` 裡的
+   **window token 屬於啟動器**（另一個 uid），而 token 外掛改不了。
+   Google 程序在 attach 當下**完全沒有視窗相關的錯誤訊息**（六種樣式零命中、五個階段一致），
+   代表它連視窗都沒去建（§4.13 §5）。
+   效能方面（捲動事件每一筆多一次 IPC）在 09-20 那次借用視窗的 session 裡看不出掉幀，
+   但那不是一個可重現的組態，低階裝置更是完全沒有資料。
+   目前唯一還符合全部證據的方向是 §4.13 §7 的第三條路（外掛自己的透明 Activity），
+   **尚未決定、尚未實作**。
 3. **協定本身沒有官方文件**：交易順序（spec §8.4）若與裝置上 Google app 實際使用的
    版本不同，呼叫會打到錯誤的方法。`TransactionOrderTest` 只能保證我們自己沒有改動
    順序，不能保證順序本身正確。
