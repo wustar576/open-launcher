@@ -555,6 +555,8 @@ adb shell am force-stop app.openlauncher.feed     # 讓外掛從乾淨狀態重�
 | `OLFeedDetachPre` | 每次 attach 前無條件補一發 `windowDetached(false)` | `DETACH_BEFORE_ATTACH`（假說 #3） |
 | `OLFeedNoLinger` | 關掉「最後一個客戶端走了先等 1 秒」的緩衝，回到舊的「立刻 unbind」 | 用來**重現** 22:48 那次的上游抖動 |
 | `OLFeedBindImp` | 綁 Google app 時多加 `BIND_IMPORTANT`（`0x41`） | 對照另一家外掛的兩條連線 |
+| `OLFeedDualBind` | 綁 Google app 改用**兩條** `ServiceConnection`，flags 分別是 `0x41`（`BIND_AUTO_CREATE\|BIND_IMPORTANT`）與 `0x21`（`BIND_AUTO_CREATE\|BIND_WAIVE_PRIORITY`），模仿真正啟動器對 overlay service 的綁定形狀；兩條會拿到同一個 binder，只認第一條收到的（不一樣就記一筆 warning），unbind 時兩條都解除。與 `OLFeedBindImp` 同時打開時**以這個為準**，log 會寫 `bindImp ignored` | 假說：Google app 看的是「客戶端綁定的形狀」 |
+| `OLFeedBridge` | 不管 manifest meta-data 寫什麼，一律用 **bridge 模式**（外掛代綁 Google，再把 Google 的 binder 交還啟動器）。關掉時 manifest 的值照常生效（預設 proxy）。**模式只在 `onCreate()` 決定一次**，所以改完一定要 `am force-stop app.openlauncher.feed` | 2026-09-21 證實 proxy 在冷啟動下從沒成功過，bridge 必須重測，但不想為了換模式重建 APK |
 | `OLFeedV9` / `OLFeedV11` | 外掛綁 Google app 的 URI 變成 `?v=9` / `?v=11` | E3 |
 | `OLFeedNoCv` | URI 整個不帶 `cv` 參數（另一家外掛就是這樣） | E3 |
 
@@ -562,10 +564,24 @@ adb shell am force-stop app.openlauncher.feed     # 讓外掛從乾淨狀態重�
 那一筆是哪個變體送出去的：
 
 ```
+I OLFeed.Service:  onCreate: mode=bridge(override) (manifest=proxy, OLFeedBridge=true), package=app.openlauncher.feed …
 I OLFeed.Upstream: binding: com.android.launcher3.WINDOW_OVERLAY data=app://app.openlauncher.feed:10429?v=7&cv=9 …
-                   flags=0x1 | switches: rewriteId=false wrapCb=false detachPre=false linger=1000ms bindFlags=0x1 upstream=v7,cv9
+                   bindFlags=0x41+0x21 connections=2 | switches: mode=bridge(override) rewriteId=false wrapCb=false
+                   detachPre=false linger=1000ms bindFlags=0x41+0x21(dual) upstream=v7,cv9
 I OLFeed.Proxy:    windowAttached2(keys=[…]) -> forwarding now | switches: …
 ```
+
+bridge 模式下另外還看得到這三行（「Google app 到底理不理外掛」的證據）：
+
+```
+I OLFeed.Bridge:   bindService(flags=0x41) from the launcher, callback=…
+I OLFeed.Bridge:   handing Google overlay binder to …: binder=… descriptor=com.google.android.libraries.launcherclient.ILauncherOverlay alive=true
+I OLFeed.Bridge:   upstream ping: hasOverlayContent() = true
+```
+
+`descriptor=<empty>` 代表 Google app 交回來的 binder 連介面描述字串都沒有——那正是
+2026-09-20 在**啟動器**那一端看到的樣子，印在外掛這一端就分得出是「本來就空」還是
+「跨程序之後才掉的」。
 
 #### 同一輪改掉的兩個真 bug（與上面的假說無關）
 

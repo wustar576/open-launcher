@@ -21,6 +21,9 @@ import android.os.Process
  *
  * 所有狀態都在主執行緒上操作（binder 執行緒進來的呼叫請先 post 過來），
  * 連線狀態本身交給純邏輯的 [ConnectionStateMachine]。
+ *
+ * 綁幾條線由 [FeedFlags.upstreamBindFlagsList] 決定：平常一條，
+ * `OLFeedDualBind` 打開時兩條（0x41 + 0x21，模仿真正啟動器的形狀）。
  */
 class GoogleOverlayConnector(
     private val context: Context,
@@ -48,6 +51,16 @@ class GoogleOverlayConnector(
     private var upstreamBinder: IBinder? = null
     private var bound = false
 
+    /** 這一輪綁定用的連線（一條或兩條）。 */
+    private var connections: List<UpstreamConnection> = emptyList()
+
+    /**
+     * 綁定的「第幾輪」。每次 [doBind] 加一，連線把建立時的世代記在身上，
+     * 回呼進來時世代對不上就直接忽略——拆線之後才姍姍來遲的回呼不該動到新的連線狀態，
+     * 兩條連線同時回報 binding died 時也只會有一條真的觸發重綁。
+     */
+    private var bindGeneration = 0
+
     val state: UpstreamState get() = machine.state
 
     /** 目前拿到的 Google app overlay binder，尚未連上時為 null。 */
@@ -55,10 +68,55 @@ class GoogleOverlayConnector(
 
     val component: ComponentName? get() = boundComponent
 
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+    /**
+     * 一條對 Google app 的連線。
+     *
+     * 兩條連線會拿到**同一個** binder（Android 對同一個 intent 只呼叫一次 `onBind`），
+     * 所以 [onServiceConnected] 只認第一條送到的那個；萬一真的不一樣，那是個值得記一筆
+     * warning 的大事（代表 Google app 依 flags 給了不同的實例）。
+     */
+    private inner class UpstreamConnection(
+        private val index: Int,
+        val bindFlags: Int,
+        private val generation: Int,
+    ) : ServiceConnection {
+
+        /** 這條線現在是不是連著的。只有最後一條斷掉才算「上游沒了」。 */
+        var isConnected = false
+            private set
+
+        val label: String get() = "conn#$index(${AttachPayload.hex(bindFlags)})"
+
+        private fun onMainThread(what: String, block: () -> Unit) {
             handler.post {
-                FeedLog.i(FeedLog.UPSTREAM, "connected to $name (binder=$service)")
+                if (generation != bindGeneration) {
+                    FeedLog.d(FeedLog.UPSTREAM, "$label $what from an old binding (gen $generation), ignoring")
+                    return@post
+                }
+                block()
+            }
+        }
+
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            onMainThread("onServiceConnected") {
+                isConnected = true
+                val existing = upstreamBinder
+                if (existing != null) {
+                    if (existing === service) {
+                        FeedLog.i(
+                            FeedLog.UPSTREAM,
+                            "$label connected to $name with the same binder; the first one stands",
+                        )
+                    } else {
+                        FeedLog.w(
+                            FeedLog.UPSTREAM,
+                            "$label connected to $name with a DIFFERENT binder " +
+                                "($service, keeping $existing); only the first one is used",
+                        )
+                    }
+                    return@onMainThread
+                }
+                FeedLog.i(FeedLog.UPSTREAM, "connected to $name (binder=$service) via $label")
                 boundComponent = name
                 upstreamBinder = service
                 apply(machine.onUpstreamConnected())
@@ -66,28 +124,42 @@ class GoogleOverlayConnector(
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            handler.post {
-                FeedLog.w(FeedLog.UPSTREAM, "disconnected from $name")
+            onMainThread("onServiceDisconnected") {
+                isConnected = false
+                FeedLog.w(FeedLog.UPSTREAM, "$label disconnected from $name")
+                if (connections.any { it.isConnected }) {
+                    // 還有另一條連著：對客戶端而言上游根本沒斷。
+                    FeedLog.i(FeedLog.UPSTREAM, "another connection is still up; keeping the binder")
+                    return@onMainThread
+                }
                 upstreamBinder = null
                 apply(machine.onUpstreamDisconnected())
             }
         }
 
         override fun onBindingDied(name: ComponentName) {
-            handler.post {
-                FeedLog.w(FeedLog.UPSTREAM, "binding died for $name, rebinding")
+            onMainThread("onBindingDied") {
+                isConnected = false
+                FeedLog.w(FeedLog.UPSTREAM, "$label binding died for $name, rebinding")
                 upstreamBinder = null
+                // REBIND 會把世代加一，另一條線的 onBindingDied 因此會被當成過期回呼忽略。
                 apply(machine.onBindingDied())
             }
         }
 
         override fun onNullBinding(name: ComponentName) {
-            handler.post {
-                FeedLog.e(FeedLog.UPSTREAM, "$name returned a null binder; is this build debuggable?")
+            onMainThread("onNullBinding") {
+                isConnected = false
+                FeedLog.e(
+                    FeedLog.UPSTREAM,
+                    "$label: $name returned a null binder; is this build debuggable?",
+                )
                 upstreamBinder = null
                 apply(machine.onBindFailed())
             }
         }
+
+        override fun toString(): String = label
     }
 
     /** 客戶端要用 overlay。重複 attach 同一個 listener 是安全的。 */
@@ -196,11 +268,20 @@ class GoogleOverlayConnector(
     private fun doBind() {
         if (bound) return
         val intent = buildUpstreamIntent()
+        val bindFlagsList = flags.upstreamBindFlagsList
         FeedLog.i(
             FeedLog.UPSTREAM,
             "binding: ${intent.action} data=${intent.data} pkg=${intent.`package`} " +
-                "flags=${AttachPayload.hex(flags.upstreamBindFlags)} | switches: ${flags.describe()}",
+                "bindFlags=${flags.describeBindFlags()} " +
+                "connections=${bindFlagsList.size} | switches: ${flags.describe()}",
         )
+        if (flags.bindImportantIgnored) {
+            FeedLog.i(
+                FeedLog.UPSTREAM,
+                "${FeedFlags.TAG_DUAL_BIND} wins over ${FeedFlags.TAG_BIND_IMPORTANT}: " +
+                    "the two connections already carry BIND_IMPORTANT on the first one",
+            )
+        }
         if (!isGoogleAppAvailable()) {
             FeedLog.e(
                 FeedLog.UPSTREAM,
@@ -209,28 +290,56 @@ class GoogleOverlayConnector(
             apply(machine.onBindFailed())
             return
         }
-        val ok = try {
-            context.bindService(intent, connection, flags.upstreamBindFlags)
-        } catch (t: Throwable) {
-            FeedLog.e(FeedLog.UPSTREAM, "bindService threw", t)
-            false
+        bindGeneration++
+        val established = mutableListOf<UpstreamConnection>()
+        bindFlagsList.forEachIndexed { index, bindFlags ->
+            val connection = UpstreamConnection(index + 1, bindFlags, bindGeneration)
+            val ok = try {
+                context.bindService(intent, connection, bindFlags)
+            } catch (t: Throwable) {
+                FeedLog.e(FeedLog.UPSTREAM, "bindService threw for ${connection.label}", t)
+                false
+            }
+            if (ok) {
+                established += connection
+                FeedLog.i(
+                    FeedLog.UPSTREAM,
+                    "${connection.label}: bindService returned true, waiting for onServiceConnected",
+                )
+            } else {
+                FeedLog.e(FeedLog.UPSTREAM, "${connection.label}: bindService returned false")
+                // 依 Android 文件，回傳 false 仍必須 unbind 才不會洩漏。
+                runCatching { context.unbindService(connection) }
+            }
         }
-        if (ok) {
-            bound = true
-            FeedLog.i(FeedLog.UPSTREAM, "bindService returned true, waiting for onServiceConnected")
-        } else {
-            FeedLog.e(FeedLog.UPSTREAM, "bindService returned false")
-            // 依 Android 文件，回傳 false 仍必須 unbind 才不會洩漏。
-            runCatching { context.unbindService(connection) }
+        connections = established
+        if (established.isEmpty()) {
             apply(machine.onBindFailed())
+            return
+        }
+        bound = true
+        if (established.size < bindFlagsList.size) {
+            // 第一條成功就還有 binder 可用，降級成單線繼續跑，但要在 log 裡講清楚。
+            FeedLog.w(
+                FeedLog.UPSTREAM,
+                "only ${established.size}/${bindFlagsList.size} connection(s) were established",
+            )
         }
     }
 
     private fun doUnbind() {
         if (!bound) return
-        FeedLog.i(FeedLog.UPSTREAM, "unbinding from ${OverlayProtocol.GOOGLE_APP_PACKAGE}")
-        runCatching { context.unbindService(connection) }
-            .onFailure { FeedLog.w(FeedLog.UPSTREAM, "unbindService failed", it) }
+        FeedLog.i(
+            FeedLog.UPSTREAM,
+            "unbinding ${connections.size} connection(s) from ${OverlayProtocol.GOOGLE_APP_PACKAGE}",
+        )
+        connections.forEach { connection ->
+            runCatching { context.unbindService(connection) }
+                .onFailure {
+                    FeedLog.w(FeedLog.UPSTREAM, "unbindService failed for ${connection.label}", it)
+                }
+        }
+        connections = emptyList()
         bound = false
         upstreamBinder = null
         boundComponent = null
